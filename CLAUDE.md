@@ -1,0 +1,266 @@
+# Orbfall — project brief for Claude Code
+
+Single-file HTML5 merge-drop game (portrait, one-thumb, mobile browser). The owner is James;
+he plays it himself and wants a game with a real skill ceiling, not a cozy idle loop. Treat this
+file as the design record: it captures decisions already made so they don't get re-litigated.
+
+## Ground rules
+- `index.html` is the whole game: inline CSS + JS, no build step, no framework, no assets.
+  The only files beside it are the PWA shell (`manifest.webmanifest`, `sw.js`, `icons/`), the
+  script that drew the icons (`tools/icons.js`, run by hand, output checked in) and the tests.
+  Keep it that way; a bundler is not welcome.
+- Canvas 2D at 60 fps on a mid-range phone is the performance bar. Orbs are drawn from one
+  pre-lit sprite per tier and the felt and box are static layers, all rebuilt in `resize()`; the
+  only `shadowBlur` is baked into the top two tiers' sprites at build time. Don't add per-ball
+  shadows, filters, per-frame gradients, or DOM per ball.
+- Run `npm test` before and after any change to physics, scoring, persistence, input, or the
+  PWA shell. The three suites (physics, functional, pwa) are headless Node (no deps) and take
+  a few seconds.
+- Labels are sentence case ("best", "next", "undo"), no middle-dot metadata strings, no
+  all-caps. Motion only in response to play (nothing idles); `prefers-reduced-motion` switches
+  off shake, particles, squash, pop, flash, slow motion, ghosts, the chain wash and the rolling
+  counter, and keeps the colour cues (danger outlines, reveal text).
+- The tuning constants are knobs, not settled values — the owner adjusts them from feel.
+
+## Map of index.html
+Sections in order, each marked with a `/* ---------- name ---------- */` comment:
+tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
+sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
+settings sheet → simulation → rendering (static layers, sprites, tier signatures, effects) →
+layout & input → pwa → loop.
+
+## Rules of the game (current)
+- 11 tiers (Mote … Sun). Two touching orbs of the same tier merge into the next tier at their
+  midpoint. Score for a merge = triangular number of the *pair's* tier: 1, 3, 6, 10 … 66.
+  Sun + Sun vanish for +200. Merges within 0.9 s of each other chain: bonus = base × 0.5 × (n−1).
+- Spawns are tiers 0–4 with weights `SPAWN_W=[28,26,20,15,11]`. Drop cooldown 0.42 s.
+- Loss: an orb older than 0.7 s whose top is above `LINE_Y` for more than 1.0 s continuous.
+  The owner said the loss "was visible 30 s ahead" — that legibility is intentional; keep it.
+- Difficulty calibration (from headless sims, random play at 2 drops/s, uniform x):
+  random reaches tier 7–8 and 1–3k points. The owner reached Nova (tier 9) and 3.2k in five
+  rounds — only modestly above random. Backlog #5 exists to widen that gap.
+
+## Physics (don't change casually)
+Fixed step `DT=1/120` with an accumulator (max 6 steps/frame). Verlet integration, gravity
+`G=2400` logical px/s², air damping `DAMP=.997`, per-step speed cap `MAXV=14`. Six constraint
+iterations per step: pairwise circle overlap resolved positionally, mass-weighted by r²;
+walls/floor are resolved *after* the pair pass each iteration (this order fixed a floor-sink
+bug). After the iterations, upward velocity is capped at 5 px/step and horizontal at 6 to stop
+merge "popcorn" launches. A merged orb starts at the parent radius and grows to its target
+over ~10 steps (`b.r` → `b.tr`) so neighbours are pushed gradually. Rotation is visual only.
+World is 360×676 logical units, letterboxed to the viewport; box interior is 336×476.
+The merge branch of `physStep` is also where the effect hooks live (`addScore`, `fx`, `sfxMerge`,
+`vib`, `ghost`, `reveal`, and a born orb's pop and flash fields); those lines are effects, not
+physics, and the integration and constraint code is unchanged from the original build.
+
+Known intermittent test failure (seen 2026-09-24; pre-existing, the simulation was untouched
+by the storage/PWA/revive work): `test/physics.js` fails "no velocity blow-ups" in roughly one
+run in ten (1 of 12 in a row, plus one earlier). Diagnosed with a scratch harness: on a merge
+frame the new, heavier orb overlaps a neighbouring Mote and the mass-weighted positional pass
+shoves the Mote about 45 px straight down in one step (recorded speed ≈ 35 px/step against
+the 14 cap, just over the test's 2.5× line). The post-iteration clamps cover upward (5) and
+horizontal (6) pushes but not downward ones. Candidate one-line fix, after the horizontal
+clamp: `if(b.y-b.py>MAXV)b.py=b.y-MAXV;` — a physics change, so the owner's call; run the
+physics suite ten times after it. Random play uses `Math.random`, so the suite is not
+deterministic; backlog #4's seeded RNG could make it so.
+A second, rarer random failure: "no orb left the top of the screen", seen twice in about 140
+runs on 2026-09-24. The caught case was a Pip whose top edge reached 0.2 px above the screen
+for 4 frames, with the time scale at 1 (slow motion not active) and the loss timer at 0.55 s:
+the same family as the shove above, only upward, and only just over the test's edge. Measured
+in 20-run batches the same day: the pre-feel build had 1 blow-up and no launch, the feel build
+0 failures, the feel build with slow motion disabled 4 blow-ups; over 60 more runs the feel
+build had 7 blow-ups and that 1 launch. The feel pass is not the cause; if the downward clamp
+is added, an upward displacement clamp probably belongs beside it.
+
+## Persistence
+Schema v2, one JSON blob under key `orbfall_v2`:
+`{best, bestTier, games, sum, revives, modes, opt, top:[rec…], runs:[rec…≤400], live}` where
+`rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush'}` (no `m` means
+Casual), `revives` is the lifetime revive count (it decides whether the next revive is free),
+`modes = {casual:{best,bestTier,games,sum}, rush:{…}}` holds the per-mode stats (`best`, `games`
+and `sum` at the top level stay as the overall figures; a save without `modes` migrates into
+Casual), `top` keeps 20 entries per mode, `opt` is the settings block
+(`{mute, sfx, music, haptics, aim, mode}`; unknown or mistyped values fall back to defaults),
+and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m}`), flushed
+every 2.5 s while dirty and on
+`visibilitychange`/`pagehide`, restored on load. `persist()` is a no-op until the load has
+finished (`loaded` flag) — this prevents the boot `reset()` from wiping the save. Keep that.
+All reads and writes go through the `store` adapter (`store.get(key)` → Promise of the stored
+string or null, `store.set(key, val)` → Promise, neither ever rejects; `store.kind` says which
+backend won). Order: `window.storage` when present (Claude.ai artifacts), else `localStorage`
+(probed with a write at startup because Safari private mode used to throw on `setItem`), else
+memory. Every write is mirrored in memory, so a later `localStorage` failure (quota) costs
+nothing within the session. Same schema on every backend, no migration. A loaded blob is
+validated before use: unparsable JSON, non-array `top`/`runs`, or a malformed `live.b` entry
+is ignored rather than allowed to break the boot. The `orbfall_save_v1` read is the last
+remaining bridge for pre-v2 artifact saves.
+
+## PWA
+`manifest.webmanifest` (Orbfall, standalone, portrait, felt theme and background) + `sw.js` +
+`icons/` (192/512 `any` on a rounded felt tile, 192/512 `maskable` full-bleed with the orb inside
+the 80 % safe zone, 180 `apple-touch-icon`). `sw.js` precaches the shell on install (`./`,
+manifest, icons, fetched with `cache:'reload'`) and serves it cache-first; every navigation
+inside the scope is answered with the cached `./`, so hosts with clean URLs that redirect
+`/index.html` can never poison the cache. **Bump `CACHE` in `sw.js` with every shipped change**
+— installed players only get a new build when that file changes. The old cache is deleted on
+activate, `skipWaiting` + `clients.claim` make the next launch the new build, and there is no
+forced reload (an update must never interrupt a run). Registration lives in the `pwa` section
+of index.html and is skipped on `file:` URLs and wherever `navigator.serviceWorker` is absent
+(artifacts). Icons are drawn by `tools/icons.js` with the same palette and highlight geometry
+as `drawBall`; `npm run icons` regenerates them (deterministic output). Verified 2026-09-24 in
+desktop Chromium: manifest parses, worker installs and controls the page, the game reloads
+with the server stopped, a run restores from `localStorage`. Not yet done on a phone: the
+Android Chrome install prompt and the iOS 26 Home Screen install — do both once it is hosted.
+
+## Undo, revive and the reward hook
+One free undo per run (`UNDO_FREE_PER_RUN`), then `requestReward(grant)` gates it. Today
+`requestReward` shows a cancelable placeholder countdown (`AD_STUB_SECONDS`) and then grants —
+that is the seam where a real rewarded-ad SDK goes; nothing else in the file should know about
+ads. Undo restores a full pre-drop snapshot (balls, score, combo, next piece) and resets the
+line timers. Runs that used undo carry `u` and show ↶ on the scoreboard so the board stays
+honest. Design note from testing: undoing one drop at game over rarely saves a run because
+the losing position was set several drops earlier; the rewarded item that actually rescues is
+the **revive** below. Undo stays for mid-run misplacements.
+
+**Revive** (shipped 2026-09-24). On the game-over card, "Clear the smallest orbs" removes the
+`REVIVE_CLEAR` (8) smallest orbs by tier (ties: the higher one goes first), zeroes every orb's
+line timer, un-records the run and resumes it; `r` on a keyboard does the same. It is capped
+at `REVIVE_PER_RUN` (1) per run — the button is disabled at a second game over of the same run,
+so a run can be rescued once and the skill ceiling holds. The first `REVIVE_FREE` (1) revives
+ever are free; after that every revive goes through `requestReward`, which is what makes it
+the rewarded item. That count lives in the save (`revives`), not the run, so it survives
+reloads. A revive clears the undo snapshot (undo must not resurrect the cleared orbs), marks
+the run with `v` and shows ↻ on the board next to ↶. The spec said "once per run; ad-gated
+after the first free one"; this is the reading taken — set `REVIVE_PER_RUN=0` and raise
+`REVIVE_FREE` if the owner wants it looser. Verified 2026-09-24 in desktop Chromium as well
+as the harness. One limitation seen there: the revive does not guarantee a rescue. In a run
+stacked against a wall the top of the pile was Moons and Marbles, the eight smallest orbs
+sat lower down, and the run ended again within a second of reviving. Under random play the
+smallest orbs are the recent drops at the top, so it rescues. If it feels hollow in real
+play, the owner's call is "clear the highest N" or "clear everything above the line" — both
+are one-line changes to the sort in `doRevive`.
+
+## Scoreboard
+Bottom sheet, filters All time (default) / Day / Week / Month (rolling 24 h / 7 d / 30 d),
+top 10 rows, run count and average, latest run highlighted (or appended with its rank if it's
+outside the top 10). Physics pause while it's open.
+
+## Backlog, in order
+1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a
+   localStorage-only boot, reload, live-run restore, a localStorage that throws, and precedence.
+2. ~~**PWA.**~~ Shipped 2026-09-24 — see PWA. Still owed: an on-device install check on
+   Android Chrome and iOS 26 once the game is hosted somewhere.
+3. ~~**Revive.**~~ Shipped 2026-09-24 — see Undo, revive and the reward hook. Knobs:
+   `REVIVE_CLEAR`, `REVIVE_PER_RUN`, `REVIVE_FREE`. Tested: removal picks the smallest, once
+   per run, first free then ad-gated (grant and cancel), `v` on the record and ↻ on the board,
+   survives reload.
+4. **Daily seed.** Seeded RNG (mulberry32 is fine) for the piece sequence, seeded from the
+   local date; the board gets a "Today" view that only counts seeded runs, so runs are
+   comparable. Keep unseeded free play available.
+5. **Difficulty ramp.** Every ~1,000 points shift `SPAWN_W` toward larger pieces (cap at a
+   sane ceiling). Re-run `test/physics.js` and report random-play tier/score; target: random
+   tops out at tier 7, Sun reachable only with deliberate play.
+6. **Hold/swap** the next piece (optional — changes the skill profile; ask the owner first).
+7. ~~**Settings**~~ Shipped 2026-09-24 (music, effects, haptics, aim guide, mode). Left/right-handed
+   bar order is still open.
+8. **Ad SDK** behind `requestReward` only when there is real inventory (a portal SDK such as
+   Poki/CrazyGames, or Google's H5 game ads). Not before.
+9. **Time attack** as a third mode (score as much as you can in two minutes): comparable runs,
+   a natural end, and the obvious daily challenge once #4 exists.
+
+## Visual system
+felt `#10231e`, pocket `#0b1915`, brass `#b8955a`, ivory `#f3ecdc`, sage `#8fa59a`,
+coral `#ff6b57` (danger), gold `#ffb020` (achievement / ad-gated). Type: `ui-rounded`,
+"SF Pro Rounded", Segoe UI, Roboto, system-ui. Score numerals 800 weight, tight tracking,
+tabular figures. Orb palette lives in `TIERS`.
+
+## Feel (shipped 2026-09-24)
+Showy was the brief. Everything below sits behind the `feel knobs` block and is off under
+`prefers-reduced-motion`.
+- **Merge**: the born orb starts at 1 − `POP_OVERSHOOT` of full size and springs past it (damped
+  cosine, settled in about a second), flashes white for a tenth of a second, and neighbours are
+  still pushed by the existing radius growth. Particles mix the tier colour with its highlight;
+  from Planet up some are streaks. Shake is `SHAKE_BASE · SHAKE_GROW^tier`, so Motes tremble and
+  Giants thump. The "+N" float pops in and drifts with an ease-out. Chains: the ×n in the HUD
+  pulses, every link raises the merge pitch a semitone, and from `WASH_FROM` links the pocket
+  edge washes in the merge colour.
+- **Landing**: detected in `updateFx` from the vertical speed collapsing between frames, nothing
+  in the constraint loop: a `SQUASH` squash, a sage dust puff, a thud pitched by tier, a 4 ms
+  tick. Release plays a soft tick instead of the old thud.
+- **Progression**: the first time a run reaches a tier, `reveal()` floats its name in the tier
+  colour with a slow ring and an arpeggio. Tier signatures live in `decorate()`: plain to Bead,
+  a swirl on Marble, a band on Orb, craters from Moon, seas on Giant, a four-point sparkle on
+  Star, a halo on Nova, a corona on Sun; Planet has a ring drawn behind and in front of the body.
+- **Danger**: `drawDanger` outlines every orb over the line in coral, stronger as its timer runs;
+  a soft tick every quarter second past 0.45 s; and `timeScale` eases towards `SLOW_TO` as the
+  timer passes `SLOW_FROM`. Physics time slows, so the loss takes longer in real time and snaps
+  back the moment the orb settles.
+- **Score**: the counter rolls (`ROLL`); passing the old best mid-run floats a gold "New best"
+  once (skipped when there is no old best yet).
+- **Game over and revive**: a coral flash inside the box at the moment of loss; cleared orbs
+  become `ghosts` that shrink out, with a gold sweep ring from the floor.
+- **Sound**: one `DynamicsCompressor` on the output, a one-second noise buffer for `puff()`
+  (thuds, dust, the rush of big merges, the revive sweep), arpeggios for reveal and best, a
+  danger tick. Sounds that can fire without a gesture (a restored run landing) wait for
+  `armed()`, so no AudioContext is created before the first tap.
+- **Haptics**: patterns per event (big merge, reveal, best, game over, revive); 4 ms on landing.
+  `vib()` waits for a real gesture (`gestured`, plus `navigator.userActivation` where it exists):
+  browsers block and log vibrate calls before user activation, and a restored run can land
+  before the first tap.
+- **Chrome**: press feedback on every button; the highlighted board row slides in.
+The harness checks each mechanism and that reduced motion turns them off. Not measured on a
+phone yet: if a mid-range device drops frames, lower `PARTS_MAX` first, then the streak share
+and particle counts in `fx`.
+
+## Settings (shipped 2026-09-24)
+A second bottom sheet, opened from the scores sheet header. Switches for music, sound effects,
+haptics and the aim guide, plus the Casual / Rush pair, all in `opt` and persisted with the
+save. The bar's sound button is a master mute (`opt.mute`) over both music and effects; `m` on
+a keyboard toggles it. `setOpt(k, v)` → `applyOpts()` → `persist()` is the only write path;
+`applyOpts` also starts or stops the music and, before the first drop of a run, applies a mode
+change to the current run. Sheets pause physics and the Rush clock. Reduced motion drops the
+switch animation.
+
+## Music (shipped 2026-09-24)
+A generated chiptune, no assets: eight bars in A minor at 150 BPM, two passes with a different
+lead in the back half, in the `music` section. Notes are A-minor scale degrees in the pattern
+strings ('0' is A4, '7' is A5, letters climb from there); `deg()` turns them into MIDI. Voices:
+triangle bass, a 25 % pulse lead (a `PeriodicWave`), square arps, kick / snare / hat from the
+noise buffer. Layers follow the run in `musicLayers()`: bass and kick always, snare and hats at
+150 points or 8 drops, the lead at 400, chord arps from the first Planet, and a hammered
+tension line past 0.3 s of danger, when a low-pass on the whole track also closes and opens
+with the loss timer. `musicEvents(step, mask, pass)` is pure; `musicTick` is a 25 ms lookahead
+scheduler on the audio clock that queues 150 ms ahead. `duck()` dips the track under big
+merges, reveals and the revive; game over fades it and plays a short A minor to E cadence;
+Play again restarts it from the top; a hidden tab stops it and a visible one resumes in place.
+It starts only after the first gesture (from `audio()`), and only while `opt.music` and the
+master mute allow. Verified 2026-09-24 in desktop Chromium by counting scheduled nodes: bass
+and kick at the expected rate from the first tap, the drum layer arriving with the drops, no
+console errors; a hidden page stops the track by design (the pane had to be made visible to
+the page for the check). Not yet heard through a real speaker; the harness checks the
+sequencer and the layer gating, not the sound.
+
+## Rush mode (shipped 2026-09-24)
+Casual is the original game. Rush adds a shot clock per piece: `RUSH_CLOCK` seconds at score
+0 shrinking linearly to `RUSH_CLOCK_MIN` by `RUSH_CLOCK_BY` points; when it runs out the piece
+drops where it is aimed (`drop(aimX)`), so play never stalls. The clock runs on real time
+(`realDt`, unscaled by slow motion), pauses with any sheet or the ad overlay, is drawn as an
+arc around the hover piece that turns coral for the last 30 %, and ticks in the last 0.8 s.
+`runMode` is the run's mode (frozen at `reset()` from `opt.mode`, so a switch on the game-over
+card or in settings applies to the next run, or at once before the first drop); it is saved in
+`live.m` so a restored run keeps it. Records carry `m:'rush'`; the scoreboard has a Casual /
+Rush segment (`boardMode`, opening on the mode being played) with per-mode all-time lists,
+counts, averages and bests, and a small "rush" tag sits under the best score in the HUD. Rush
+is the difficulty ramp backlog #5 asked for, by another route; time attack was considered and
+left as a later mode on the same switch.
+
+## Do-not-break list
+one-tap restart · run resume after app switch · save survives reload · undo marks on board ·
+sound stays off until the first gesture (WebAudio unlock) · body `touch-action:none` with the
+scoreboard list opting back into `pan-y` · revive capped per run, marked ↻ on the board, and
+it clears the undo snapshot · `window.storage` stays first in the store adapter
+(artifact saves must remain readable) · `CACHE` in `sw.js` bumped with every release ·
+`apple-mobile-web-app-*` meta tags and the `apple-touch-icon` link stay · sprites and layers
+rebuilt in `resize()` · `PARTS_MAX` cap · reduced motion switches every feel effect off ·
+every option write goes through `setOpt` · `top` keeps 20 per mode · the Rush clock runs on
+real time and pauses with the sheets · music starts only from a gesture.
