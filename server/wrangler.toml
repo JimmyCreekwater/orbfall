@@ -1,0 +1,15 @@
+# Cloudflare Worker for the Orbfall online board. See PUBLISHING.md for the three commands that set it up.
+name = "orbfall-board"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "orbfall-board"
+database_id = "PASTE-THE-ID-PRINTED-BY-wrangler-d1-create"
+
+[vars]
+# "*" lets any site read the board; put your game's address here (like "https://you.github.io") to restrict it.
+ALLOWED_ORIGIN = "*"
+# any random text; it is mixed into the hashed IPs used for rate limiting. Change it once, then leave it.
+SALT = "change-me-to-anything-random"

@@ -69,11 +69,11 @@ function makeEnv(storeMap, opts) {
     };
   }
   let now = 0;
-  const vibes = [];
+  const vibes = [], shares = [];
   const g = {
     window: win, document: doc, performance: { now: () => now },
-    navigator: { vibrate: (p) => { vibes.push(p); return true; }, userActivation: { hasBeenActive: true } },
-    vibes,
+    navigator: { vibrate: (p) => { vibes.push(p); return true; }, userActivation: { hasBeenActive: true }, share: (d) => { shares.push(d); return Promise.resolve(); } },
+    vibes, shares,
     requestAnimationFrame: f => { g._raf = f; },
     setTimeout: (f) => { f(); },
     setInterval: (f, ms) => { const id = ++tid; timers.push({ id, f, ms, acc: 0 }); return id; },
@@ -108,6 +108,7 @@ window.__dbg=function(){
     opt:JSON.parse(JSON.stringify(opt)),optsOpen:optsEl.classList.contains('show'),boardOpen:sheetEl.classList.contains('show'),music:mOn,mNotes:mNotes,
     runMode:runMode,clock:clock,clockMax:clockMax,boardMode:boardMode,modes:JSON.parse(JSON.stringify(save.modes)),startBest:startBest,
     faulted:faulted,faultCount:faultCount,faultShown:faultEl.classList.contains('show'),
+    rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
     modeUI:modeBtns.map(function(b){return b.getAttribute('data-m')+(b.classList.contains('on')?'*':'');}).join(' '),
     switches:Object.keys(swEls).map(function(k){return k+'='+swEls[k].getAttribute('aria-checked');}).join(' '),soundOff:soundBtn.classList.contains('off'),
     games:save.games,runs:save.runs.length,top:save.top.length,drops:drops,live:!!save.live,tier:runBestTier,store:store.kind,

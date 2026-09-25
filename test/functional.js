@@ -255,5 +255,30 @@ async function playToGameOver(g) {
   g.fire('win:error', { message: 'handler blew up' }); q = g.dbg();
   check(q.faulted && q.faultShown, 'an error outside the loop reaches the same card');
 
+  // share, landscape hint, install nudge
+  const iv = new Map();
+  g = boot(iv); await settle(); g.step(16.67);
+  o = await playToGameOver(g);
+  g.fire('share:click'); await settle();
+  check(g.shares.length === 1 && g.shares[0].title === 'Orbfall' && g.shares[0].text.includes(o.score.toLocaleString('en-US')) && !g.shares[0].url, 'Share hands the score to the system share sheet (no link when there is no http address)');
+  check(g.dbg().installShown === false && g.dbg().iosHintShown === false, 'no install nudge after one run');
+  g.fire('win:beforeinstallprompt', { preventDefault() {}, prompt() { g.prompted = true; } });
+  g.fire('again:click'); g.step(16.67); await playToGameOver(g); g.step(16.67);
+  check(g.dbg().installShown === true, 'after two runs the Android install prompt is offered on the card');
+  g.fire('install:click');
+  check(g.prompted === true && g.dbg().installShown === false, 'tapping it shows the browser prompt and the button goes away');
+  g.navigator.userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)';
+  g.fire('again:click'); g.step(16.67); await playToGameOver(g); g.step(16.67);
+  check(g.dbg().iosHintShown === true, 'on an iPhone with no prompt, the Home Screen hint appears instead');
+  g.fire('iosok:click'); await settle();
+  check(g.dbg().iosHintShown === false && JSON.parse(iv.get('orbfall_v2')).hintedInstall === true, 'Got it hides the hint for good');
+  g.fire('again:click'); for (let k = 0; k < 20; k++) g.step(16.67);
+  g.window.innerWidth = 800; g.window.innerHeight = 400; g.window.ontouchstart = null; g.fire('win:resize'); g.step(16.67);
+  const dropsBefore = g.dbg().drops; g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); q = g.dbg();
+  check(q.rotated && q.rotateShown && q.drops === dropsBefore, 'a phone held sideways sees the turn-upright card and drops are ignored');
+  g.window.innerWidth = 390; g.window.innerHeight = 844; g.fire('win:resize'); g.step(16.67);
+  g.tap(180); g.step(16.67); q = g.dbg();
+  check(!q.rotated && !q.rotateShown && q.drops === dropsBefore + 1, 'turning back resumes play');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

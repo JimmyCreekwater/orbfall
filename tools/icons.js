@@ -1,5 +1,6 @@
-// Draws the mark (the brass orb on felt, shaded exactly like drawBall in index.html) and writes the PWA icons.
-// No dependencies. Run `npm run icons` only if the mark changes: the PNGs are checked in, this is not a build step.
+// Draws the mark (the brass orb on felt, shaded exactly like drawBall in index.html) and writes the PWA icons and
+// the link-preview image. No dependencies. Run `npm run icons` only if the mark changes: the PNGs are checked in,
+// this is not a build step.
 'use strict';
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const OUT = path.join(__dirname, '..', 'icons');
@@ -20,19 +21,20 @@ function radialT(px, py, x0, y0, r0, x1, y1, r1) {
   return r0 + hi * dr >= 0 ? hi : lo;
 }
 const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
-function inRoundRect(x, y, S, R) {
-  if (x < 0 || y < 0 || x > S || y > S) return false;
-  const cx = x < R ? R : x > S - R ? S - R : x, cy = y < R ? R : y > S - R ? S - R : y;
+function inRoundRect(x, y, W, H, R) {
+  if (x < 0 || y < 0 || x > W || y > H) return false;
+  const cx = x < R ? R : x > W - R ? W - R : x, cy = y < R ? R : y > H - R ? H - R : y;
   return (x - cx) ** 2 + (y - cy) ** 2 <= R * R;
 }
 
-/* colour of one sample point as [r, g, b, alpha 0..1] */
-function shade(x, y, S, spec) {
-  if (spec.corner && !inRoundRect(x, y, S, S * spec.corner)) return [0, 0, 0, 0];
+/* colour of one sample point as [r, g, b, alpha 0..1]; the orb sits at spec.at (fractions of W, H), sized by min(W, H) */
+function shade(x, y, W, H, spec) {
+  const S = Math.min(W, H);
+  if (spec.corner && !inRoundRect(x, y, W, H, S * spec.corner)) return [0, 0, 0, 0];
   // felt with the game's vignette: white at .035 in the centre fading to black at .4 towards the edge
-  const tv = clamp01(radialT(x, y, S / 2, S * .42, S * .12, S / 2, S * .5, S * .85));
+  const tv = clamp01(radialT(x, y, W / 2, H * .42, S * .12, W / 2, H * .5, S * .85));
   let col = mix(FELT, .035 + (.4 - .035) * tv, mix(WHITE, tv, BLACK));
-  const cx = S / 2, cy = S / 2, r = S * spec.orb, dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), w = Math.max(1.5, r * .06);
+  const at = spec.at || [.5, .5], cx = W * at[0], cy = H * at[1], r = S * spec.orb, dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), w = Math.max(1.5, r * .06);
   if (d <= r) { // the orb: highlight up-left, base colour, dark at the far edge
     const t = clamp01(radialT(x, y, cx - r * .35, cy - r * .4, r * .05, cx, cy, r * 1.05));
     col = t < .55 ? mix(HI, t / .55, BRASS) : mix(BRASS, (t - .55) / .45, LO);
@@ -49,15 +51,15 @@ function shade(x, y, S, spec) {
 }
 
 /* supersampled raster to straight-alpha RGBA */
-function raster(S, spec, ss) {
-  const buf = Buffer.alloc(S * S * 4);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+function raster(W, H, spec, ss) {
+  const buf = Buffer.alloc(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     let r = 0, g = 0, b = 0, a = 0;
     for (let j = 0; j < ss; j++) for (let i = 0; i < ss; i++) {
-      const c = shade(x + (i + .5) / ss, y + (j + .5) / ss, S, spec);
+      const c = shade(x + (i + .5) / ss, y + (j + .5) / ss, W, H, spec);
       r += c[0] * c[3]; g += c[1] * c[3]; b += c[2] * c[3]; a += c[3];
     }
-    const o = (y * S + x) * 4;
+    const o = (y * W + x) * 4;
     if (a > 0) { buf[o] = Math.round(r / a); buf[o + 1] = Math.round(g / a); buf[o + 2] = Math.round(b / a); }
     buf[o + 3] = Math.round(a / (ss * ss) * 255);
   }
@@ -74,23 +76,24 @@ function chunk(type, data) {
   const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
   return Buffer.concat([len, td, crc]);
 }
-function png(S, rgba) {
-  const stride = S * 4 + 1, raw = Buffer.alloc(stride * S);
-  for (let y = 0; y < S; y++) { raw[y * stride] = 0; rgba.copy(raw, y * stride + 1, y * S * 4, (y + 1) * S * 4); }
-  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(S, 0); ihdr.writeUInt32BE(S, 4); ihdr[8] = 8; ihdr[9] = 6;
+function png(W, H, rgba) {
+  const stride = W * 4 + 1, raw = Buffer.alloc(stride * H);
+  for (let y = 0; y < H; y++) { raw[y * stride] = 0; rgba.copy(raw, y * stride + 1, y * W * 4, (y + 1) * W * 4); }
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 6;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
     chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
-const ICONS = [
-  ['icon-192.png', 192, { corner: .22, orb: .33 }],        // purpose any: rounded felt tile
-  ['icon-512.png', 512, { corner: .22, orb: .33 }],
-  ['maskable-192.png', 192, { orb: .32 }],                 // purpose maskable: full bleed, orb inside the 80% safe zone
-  ['maskable-512.png', 512, { orb: .32 }],
-  ['apple-touch-icon.png', 180, { orb: .36 }]              // iOS masks its own corners
+const IMAGES = [
+  ['icon-192.png', 192, 192, { corner: .22, orb: .33 }],        // purpose any: rounded felt tile
+  ['icon-512.png', 512, 512, { corner: .22, orb: .33 }],
+  ['maskable-192.png', 192, 192, { orb: .32 }],                 // purpose maskable: full bleed, orb inside the 80% safe zone
+  ['maskable-512.png', 512, 512, { orb: .32 }],
+  ['apple-touch-icon.png', 180, 180, { orb: .36 }],             // iOS masks its own corners
+  ['share.png', 1200, 630, { orb: .36, at: [.5, .5] }]          // link preview (og:image), the mark on felt
 ];
 fs.mkdirSync(OUT, { recursive: true });
-for (const [name, size, spec] of ICONS) {
-  fs.writeFileSync(path.join(OUT, name), png(size, raster(size, spec, 4)));
-  console.log('icons/' + name + '  ' + size + 'x' + size);
+for (const [name, w, h, spec] of IMAGES) {
+  fs.writeFileSync(path.join(OUT, name), png(w, h, raster(w, h, spec, w > 600 ? 2 : 4)));
+  console.log('icons/' + name + '  ' + w + 'x' + h);
 }

@@ -11,6 +11,15 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Orbfall</title>
+<meta name="description" content="A one-thumb merge-drop game. Two of a kind merge; stack past the line and the run ends. Casual or Rush.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Orbfall">
+<meta property="og:description" content="A one-thumb merge-drop game. Two of a kind merge; stack past the line and the run ends.">
+<meta property="og:url" content="https://orbfall.example/">
+<meta property="og:image" content="https://orbfall.example/icons/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 :root{--felt:#10231e;--pocket:#0b1915;--brass:#b8955a;--ivory:#f3ecdc;--sage:#8fa59a;--coral:#ff6b57;--gold:#ffb020;--panel:#15302a}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -33,6 +42,12 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 #over{z-index:10}
 #adbox{z-index:30}
 #fault{z-index:40}
+#rotate{z-index:35}
+.inst{display:none;margin-top:10px;width:100%;padding:11px 8px;border-radius:14px;border:1.5px solid rgba(255,176,32,.5);background:transparent;
+  color:var(--gold);font-weight:700;font-size:14px;cursor:pointer}
+.inst.show{display:block}
+.inst.ios{border-color:rgba(184,149,90,.35);color:var(--sage);font-weight:600;font-size:13px;line-height:1.35;cursor:default}
+.inst.ios button{border:0;background:none;color:var(--gold);font-weight:700;font-size:13px;padding:0 4px;cursor:pointer}
 .card{width:min(100%,330px);padding:28px 24px 22px;border-radius:26px;background:var(--panel);
   border:1.5px solid rgba(184,149,90,.35);box-shadow:0 30px 70px rgba(0,0,0,.55);text-align:center;
   animation:pop .32s cubic-bezier(.2,1.5,.4,1)}
@@ -120,8 +135,11 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
     <button class="sec rescue" id="revive" type="button">Clear the smallest orbs</button>
     <button id="again" type="button">Play again</button>
     <div class="chips modes" id="modes" aria-label="Mode for the next run"></div>
+    <button class="inst" id="install" type="button">Add to home screen</button>
+    <div class="inst ios" id="ioshint">Share, then Add to Home Screen, keeps your scores safe on iPhone. <button id="iosok" type="button">Got it</button></div>
     <div class="row">
-      <button class="sec" id="undo2" type="button">Undo last drop</button>
+      <button class="sec" id="undo2" type="button">Undo</button>
+      <button class="sec" id="share" type="button">Share</button>
       <button class="sec" id="scores2" type="button">Scores</button>
     </div>
   </div>
@@ -137,6 +155,12 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 <div id="opts" role="dialog" aria-label="Settings">
   <div class="sh"><h2>Settings</h2><button id="optsclose" type="button">Done</button></div>
   <div class="optlist" id="optlist"></div>
+</div>
+<div id="rotate" class="veil" role="alertdialog" aria-labelledby="roth">
+  <div class="card">
+    <h1 id="roth">Turn your phone upright</h1>
+    <p class="best">Orbfall is a portrait game. The run is paused until you do.</p>
+  </div>
 </div>
 <div id="fault" class="veil" role="alertdialog" aria-labelledby="faulth">
   <div class="card">
@@ -163,6 +187,7 @@ var barEl=$('bar'),soundBtn=$('sound'),undoBtn=$('undo'),scoresBtn=$('scores');
 var dimEl=$('dim'),sheetEl=$('sheet'),closeBtn=$('close'),chipsEl=$('chips'),statsEl=$('stats'),rowsEl=$('rows');
 var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips');
 var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),faultEl=$('fault'),faultBtn=$('faultbtn');
+var rotateEl=$('rotate'),shareBtn=$('share'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok');
 var TAU=Math.PI*2;
 var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
@@ -231,7 +256,7 @@ var snapshot=null,undosFree=UNDO_FREE_PER_RUN,undosUsed=0,revivesUsed=0,lastRec=
 var dirty=false,lastFlush=0,filter='all',loaded=false;
 var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual'};   // persisted in the save as opt
 var opt=copy(OPT_DEFAULTS),swEls={};
-var save={best:0,bestTier:0,games:0,sum:0,revives:0,top:[],runs:[],live:null,opt:opt,modes:newModes()};
+var save={best:0,bestTier:0,games:0,sum:0,revives:0,top:[],runs:[],live:null,opt:opt,modes:newModes(),hintedInstall:false};
 function newModes(){return {casual:{best:0,bestTier:0,games:0,sum:0},rush:{best:0,bestTier:0,games:0,sum:0}};}
 function stat(m){return save.modes[m==='rush'?'rush':'casual'];}
 function modeOf(r){return r.m==='rush'?'rush':'casual';}
@@ -239,6 +264,7 @@ function clockFor(s){return RUSH_CLOCK-(RUSH_CLOCK-RUSH_CLOCK_MIN)*Math.min(1,Ma
 var vw=0,vh=0,dpr=1,scl=1,offX=0,offY=0;
 var shown=0,bestShown=false,timeScale=1,wash=null,ghosts=[],lastTick=-9,comboAt=-9,deathAt=-9;   // feel state
 var runMode='casual',clock=0,clockMax=0,realDt=0,boardMode='casual';   // Rush: the run's mode (opt.mode is the next run's), its shot clock, unscaled frame time
+var rotated=false,installEvt=null;   // landscape phone (run paused behind a hint); the deferred Android install prompt
 
 function fmt(n){return n.toLocaleString('en-US');}
 function roll(){var s=0,i;for(i=0;i<SPAWN_W.length;i++)s+=SPAWN_W[i];var r=Math.random()*s;for(i=0;i<SPAWN_W.length;i++){r-=SPAWN_W[i];if(r<0)return i;}return 0;}
@@ -294,7 +320,7 @@ function readModes(d){   /* per-mode best, tier, count and sum; a save from befo
 function adopt(d){
   save.best=d.best||0; save.bestTier=d.bestTier||0; save.games=d.games||0; save.sum=d.sum||0; save.revives=d.revives||0;
   save.top=Array.isArray(d.top)?d.top:[]; save.runs=Array.isArray(d.runs)?d.runs:[]; save.live=d.live||null;
-  save.modes=readModes(d); readOpts(d.opt);
+  save.modes=readModes(d); readOpts(d.opt); save.hintedInstall=!!d.hintedInstall;
 }
 function applyLoaded(){
   loaded=true; if(save.games>0||save.best>0)hint=0;
@@ -531,7 +557,7 @@ function mCadence(){   /* game over: a soft A minor to E, the track's own full s
 
 /* ---------- game flow ---------- */
 function drop(x){
-  if(state!=='play'||paused||!cur||tNow<canDropAt)return;
+  if(state!=='play'||paused||rotated||!cur||tNow<canDropAt)return;
   var t=cur.t,r=TIERS[t].r;
   x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,x));
   snapshot={b:balls.map(copy),s:score,co:combo,lm:lastMerge,bt:runBestTier,d:drops,n:nxt.t,c:t};
@@ -656,7 +682,8 @@ function updateBar(){
   undoBtn.disabled=!ok; undo2Btn.disabled=!ok;
   var adGate=undosFree<=0;
   undoBtn.textContent=adGate?'undo (ad)':'undo'; undoBtn.classList.toggle('ad',adGate);
-  undo2Btn.textContent=adGate?'Undo (ad)':'Undo last drop'; undo2Btn.classList.toggle('ad',adGate);
+  undo2Btn.textContent=adGate?'Undo (ad)':'Undo'; undo2Btn.classList.toggle('ad',adGate);
+  updateInstall();
   var rvGate=reviveGated();
   reviveBtn.disabled=!(state==='over'&&balls.length>0&&reviveLeft());
   reviveBtn.textContent=rvGate?'Clear the smallest orbs (ad)':'Clear the smallest orbs'; reviveBtn.classList.toggle('ad',rvGate);
@@ -761,6 +788,23 @@ function closeOpts(){ paused=false; dimEl.classList.remove('show'); optsEl.class
 function optsOpen(){return optsEl.classList.contains('show');}
 function closeSheets(){ if(optsOpen())closeOpts(); else if(boardOpen())closeBoard(); }
 
+/* ---------- share, install nudge ---------- */
+function share(){
+  var loc=window.location,url=(loc&&(loc.protocol==='http:'||loc.protocol==='https:'))?loc.href.split(/[?#]/)[0]:'';
+  var text='I scored '+fmt(score)+' in Orbfall'+(runMode==='rush'?' (Rush)':'')+'.'+(url?' Beat it: '+url:'');
+  try{
+    if(navigator.share){ navigator.share(url?{title:'Orbfall',text:text,url:url}:{title:'Orbfall',text:text}).then(function(){toast('Shared');},function(){}); return; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){toast('Copied');},function(){}); return; }
+  }catch(e){}
+}
+function standalone(){ try{ return !!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true; }catch(e){ return false; } }
+function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent||''); }
+function updateInstall(){   /* after two finished runs: the Android prompt if the browser offered one, else a one-time iPhone hint */
+  var enough=save.games>=2&&!standalone();
+  installBtn.classList.toggle('show',!!installEvt&&enough);
+  iosHintEl.classList.toggle('show',!installEvt&&enough&&isIOS()&&!save.hintedInstall);
+}
+
 /* ---------- simulation: fixed-step Verlet, mass-weighted overlap resolution ---------- */
 function physStep(){
   var gg=G*DT*DT,i,j,b,a;
@@ -853,7 +897,7 @@ function updateFx(dt){
   }
   if(REDUCED)shown=score; else{shown+=(score-shown)*Math.min(1,dt*ROLL);if(Math.abs(score-shown)<.6)shown=score;}
   if(!bestShown&&startBest>0&&score>startBest){bestShown=true;floats.push({x:LW/2,y:BOX.y+120,txt:'New best',l:2.2,vy:-14,big:true,age:0});sfxBest();vib([8,30,12]);}
-  if(runMode==='rush'&&state==='play'&&!paused&&cur&&cur.ap>=1){clock-=realDt;if(clock<=0){clock=0;drop(aimX);}}   /* the shot clock runs on real time */
+  if(runMode==='rush'&&state==='play'&&!paused&&!rotated&&cur&&cur.ap>=1){clock-=realDt;if(clock<=0){clock=0;drop(aimX);}}   /* the shot clock runs on real time */
   if(state==='play'&&armed()&&tNow-lastTick>.25&&(warn>.45||(runMode==='rush'&&cur&&clockMax>0&&clock<.8))){lastTick=tNow;sfxTick();}
   if(cur&&cur.ap<1)cur.ap=Math.min(1,cur.ap+dt*6);
   if(state==='play'&&!cur&&tNow>=canDropAt){cur={t:nxt.t,ap:0};nxt={t:roll()};clockMax=clockFor(score);clock=clockMax;}
@@ -924,6 +968,7 @@ function drawHint(){
   if(hint<=0)return;
   ctx.save(); ctx.globalAlpha=hint; ctx.fillStyle='#8fa59a'; ctx.textAlign='center'; ctx.font='500 15px '+FONT;
   ctx.fillText('Tap or drag to drop.',LW/2,BOX.y+236); ctx.fillText('Two of a kind merge.',LW/2,BOX.y+260);
+  ctx.fillText('Casual now. Rush waits in settings.',LW/2,BOX.y+284);
   ctx.restore();
 }
 function landingY(x,r){
@@ -1062,6 +1107,8 @@ function resize(){
   scl=Math.min(vw/LW,vh/LH); offX=(vw-LW*scl)/2; offY=(vh-LH*scl)/2;
   barEl.style.left=(offX+12*scl)+'px'; barEl.style.top=(offY+BAR_Y*scl)+'px';
   barEl.style.width=((LW-24)*scl)+'px'; barEl.style.height=(BAR_H*scl)+'px';
+  var wantRotate=vw>vh&&vh<520&&('ontouchstart' in window);   /* a phone held sideways: pause behind the hint */
+  if(wantRotate!==rotated){rotated=wantRotate;rotateEl.classList.toggle('show',rotated);}
   buildSprites(); buildLayers();
 }
 function toLX(cx){return (cx-offX)/scl;}
@@ -1082,6 +1129,11 @@ againBtn.addEventListener('click',function(){ if(state==='over')reset(); });
 undoBtn.addEventListener('click',function(){audio();tryUndo();});
 undo2Btn.addEventListener('click',function(){audio();tryUndo();});
 reviveBtn.addEventListener('click',function(){audio();tryRevive();});
+shareBtn.addEventListener('click',function(){audio();share();});
+installBtn.addEventListener('click',function(){ var e=installEvt; if(!e)return; installEvt=null; updateInstall(); try{e.prompt();}catch(err){} });
+iosOkBtn.addEventListener('click',function(){ save.hintedInstall=true; persist(); updateInstall(); });
+window.addEventListener('beforeinstallprompt',function(e){ try{e.preventDefault();}catch(err){} installEvt=e; updateInstall(); });
+window.addEventListener('appinstalled',function(){ installEvt=null; updateInstall(); });
 scoresBtn.addEventListener('click',openBoard);
 scores2Btn.addEventListener('click',openBoard);
 closeBtn.addEventListener('click',closeBoard);
@@ -1143,7 +1195,7 @@ function frameBody(now){
   var ts=1; if(!REDUCED&&state==='play'&&warn>SLOW_FROM)ts=1-(1-SLOW_TO)*Math.min(1,(warn-SLOW_FROM)/(1-SLOW_FROM));
   timeScale+=(ts-timeScale)*Math.min(1,dt*10); dt*=timeScale;
   tNow+=dt;
-  if(state==='play'&&!paused){ acc+=dt; var n=0; while(acc>=DT&&n<6){physStep();acc-=DT;n++;} if(n===6)acc=0; }
+  if(state==='play'&&!paused&&!rotated){ acc+=dt; var n=0; while(acc>=DT&&n<6){physStep();acc-=DT;n++;} if(n===6)acc=0; }
   else acc=0;
   updateFx(dt); render();
 }
