@@ -1,6 +1,6 @@
 // Physics stays bounded, merges happen, runs end. Random play at 2 drops/s, uniform x.
 'use strict';
-const { boot, settle, check, done } = require('./env.js');
+const { boot, settle, check, done, SEED } = require('./env.js');
 (async () => {
   const g = boot(new Map()); await settle(); g.step(16.67);
   const FRAMES = 12000; let games = 0, merges = 0, lastN = 0, floorLeak = 0, launches = 0, popcorn = 0, overSpeed = 0;
@@ -18,7 +18,7 @@ const { boot, settle, check, done } = require('./env.js');
     if (d.state === 'over') { games++; finals.push(d); g.step(400); g.fire('again:click'); lastN = 0; }
     else if (i % 30 === 10) g.tap(40 + Math.random() * 310);
   }
-  console.log('physics: ' + games + ' runs ended, ' + merges + ' merge events, finals ' +
+  console.log('physics (seed ' + SEED + '): ' + games + ' runs ended, ' + merges + ' merge events, finals ' +
     finals.map(d => d.score + '/tier' + d.tier).join(' '));
   check(games >= 1, 'at least one run reached game over within ' + FRAMES + ' frames');
   check(merges > 20, 'merges occur under random play');

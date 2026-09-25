@@ -5,7 +5,10 @@
   "description": "Single-file mobile browser merge-drop game",
   "scripts": {
     "test": "node test/physics.js && node test/functional.js && node test/pwa.js",
-    "icons": "node tools/icons.js"
+    "icons": "node tools/icons.js",
+    "release": "node tools/release.js"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

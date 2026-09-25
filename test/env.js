@@ -3,6 +3,16 @@
 const fs = require('fs');
 const path = require('path');
 
+// Deterministic: Math.random is seeded for the whole process (SEED env var, default 1), so a run of the suite is
+// the same run every time. `SEED=7 npm test` explores another sequence.
+const SEED = Number(process.env.SEED) || 1;
+let seedState = SEED >>> 0;
+Math.random = function () {
+  seedState = (seedState + 0x6D2B79F5) >>> 0; let t = seedState;
+  t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
 function noop() {}
 function ctxStub() {
   return new Proxy({}, { get: (t, k) => {
@@ -83,6 +93,7 @@ let src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
 src = src.replace(/\}\)\(\);\s*$/, `
 window.__reset=reset;
 window.__setOpt=setOpt;window.__clockFor=clockFor;
+var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
 window.__burst=function(n){for(var i=0;i<n;i++)fx(180,300,8,true);};
 window.__chain=function(){addScore(1,180,300,false,3);addScore(1,180,300,false,3);addScore(1,180,300,false,3);};
@@ -96,6 +107,7 @@ window.__dbg=function(){
     maxScale:balls.reduce(function(m,b){return Math.max(m,b.scale);},0),flashing:balls.filter(function(b){return b.flash>0;}).length,squashed:balls.filter(function(b){return b.sq>0;}).length,
     opt:JSON.parse(JSON.stringify(opt)),optsOpen:optsEl.classList.contains('show'),boardOpen:sheetEl.classList.contains('show'),music:mOn,mNotes:mNotes,
     runMode:runMode,clock:clock,clockMax:clockMax,boardMode:boardMode,modes:JSON.parse(JSON.stringify(save.modes)),startBest:startBest,
+    faulted:faulted,faultCount:faultCount,faultShown:faultEl.classList.contains('show'),
     modeUI:modeBtns.map(function(b){return b.getAttribute('data-m')+(b.classList.contains('on')?'*':'');}).join(' '),
     switches:Object.keys(swEls).map(function(k){return k+'='+swEls[k].getAttribute('aria-checked');}).join(' '),soundOff:soundBtn.classList.contains('off'),
     games:save.games,runs:save.runs.length,top:save.top.length,drops:drops,live:!!save.live,tier:runBestTier,store:store.kind,
@@ -115,4 +127,4 @@ let failures = 0;
 function check(cond, msg) { if (cond) console.log('  ok   ' + msg); else { failures++; console.log('  FAIL ' + msg); } }
 function done(name) { console.log(name + ': ' + (failures ? failures + ' failure(s)' : 'all passed')); process.exit(failures ? 1 : 0); }
 
-module.exports = { boot, settle, check, done };
+module.exports = { boot, settle, check, done, SEED };

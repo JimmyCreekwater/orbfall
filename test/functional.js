@@ -246,5 +246,14 @@ async function playToGameOver(g) {
   g = boot(legacy); await settle(); g.step(16.67);
   check(g.dbg().modes.casual.best === 500 && g.dbg().modes.casual.games === 2 && g.dbg().modes.rush.games === 0 && g.dbg().startBest === 500, 'a save from before modes migrates into Casual');
 
+  // safety net: a thrown error pauses the run behind a card and the restart clears it
+  g = boot(new Map()); await settle(); for (let k = 0; k < 20; k++) g.step(16.67); g.tap(180); for (let k = 0; k < 10; k++) g.step(16.67);
+  g.window.__breakRender(); for (let k = 0; k < 5; k++) g.step(16.67); q = g.dbg();
+  check(q.faulted && q.faultShown && q.paused && q.n === 1 && q.faultCount >= 1, 'a throwing frame shows the fault card and pauses instead of killing the loop (' + q.faultCount + ' caught)');
+  g.window.__fixRender(); g.fire('faultbtn:click'); g.step(16.67); q = g.dbg();
+  check(!q.faulted && !q.faultShown && !q.paused && q.state === 'play' && q.n === 0, 'Restart run clears the fault and starts a fresh run');
+  g.fire('win:error', { message: 'handler blew up' }); q = g.dbg();
+  check(q.faulted && q.faultShown, 'an error outside the loop reaches the same card');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

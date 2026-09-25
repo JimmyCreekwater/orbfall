@@ -32,6 +32,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .veil.show{display:flex}
 #over{z-index:10}
 #adbox{z-index:30}
+#fault{z-index:40}
 .card{width:min(100%,330px);padding:28px 24px 22px;border-radius:26px;background:var(--panel);
   border:1.5px solid rgba(184,149,90,.35);box-shadow:0 30px 70px rgba(0,0,0,.55);text-align:center;
   animation:pop .32s cubic-bezier(.2,1.5,.4,1)}
@@ -137,6 +138,13 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
   <div class="sh"><h2>Settings</h2><button id="optsclose" type="button">Done</button></div>
   <div class="optlist" id="optlist"></div>
 </div>
+<div id="fault" class="veil" role="alertdialog" aria-labelledby="faulth">
+  <div class="card">
+    <h1 id="faulth">Something broke</h1>
+    <p class="best">The run is paused. Restarting clears the board and keeps your scores.</p>
+    <button class="sec" id="faultbtn" type="button">Restart run</button>
+  </div>
+</div>
 <div id="adbox" class="veil">
   <div class="card">
     <h1>Ad placeholder</h1>
@@ -154,7 +162,7 @@ var overEl=$('over'),fsEl=$('fs'),fbEl=$('fb'),pbEl=$('pb'),chainEl=$('chain'),a
 var barEl=$('bar'),soundBtn=$('sound'),undoBtn=$('undo'),scoresBtn=$('scores');
 var dimEl=$('dim'),sheetEl=$('sheet'),closeBtn=$('close'),chipsEl=$('chips'),statsEl=$('stats'),rowsEl=$('rows');
 var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips');
-var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel');
+var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),faultEl=$('fault'),faultBtn=$('faultbtn');
 var TAU=Math.PI*2;
 var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
@@ -1110,9 +1118,26 @@ window.addEventListener('pagehide',function(){ if(state==='play')flush(); });
   }catch(e){}
 })();
 
+/* ---------- safety net: a thrown error pauses the run and offers a restart instead of a dead screen ---------- */
+var faulted=false,faultCount=0;
+function fault(msg){
+  faultCount++; if(faulted)return; faulted=true; paused=true;
+  try{stopMusic(.2);}catch(e){}
+  faultEl.classList.add('show');
+  try{console.error('Orbfall fault: '+msg);}catch(e){}
+}
+function clearFault(){ faulted=false; paused=false; faultEl.classList.remove('show'); reset(); }
+window.addEventListener('error',function(e){ fault(e&&e.message||'error'); });
+window.addEventListener('unhandledrejection',function(e){ fault((e&&e.reason&&e.reason.message)||'promise'); });
+faultBtn.addEventListener('click',function(){ audio(); clearFault(); });
+
 /* ---------- loop ---------- */
 var last=performance.now(),acc=0;
 function frame(now){
+  try{ frameBody(now); }catch(e){ fault(e&&e.message||'frame'); }
+  requestAnimationFrame(frame);
+}
+function frameBody(now){
   var dt=(now-last)/1000; last=now; if(dt>.05)dt=.05; if(dt<0)dt=0; realDt=dt;
   /* slow motion as the loss timer runs out: the world eases towards SLOW_TO speed and back the moment the orb settles */
   var ts=1; if(!REDUCED&&state==='play'&&warn>SLOW_FROM)ts=1-(1-SLOW_TO)*Math.min(1,(warn-SLOW_FROM)/(1-SLOW_FROM));
@@ -1120,7 +1145,7 @@ function frame(now){
   tNow+=dt;
   if(state==='play'&&!paused){ acc+=dt; var n=0; while(acc>=DT&&n<6){physStep();acc-=DT;n++;} if(n===6)acc=0; }
   else acc=0;
-  updateFx(dt); render(); requestAnimationFrame(frame);
+  updateFx(dt); render();
 }
 buildOpts(); resize(); reset(); load(); requestAnimationFrame(frame);
 })();
