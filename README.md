@@ -16,9 +16,16 @@ Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cac
 so it opens offline. After changing `index.html`, bump `CACHE` in `sw.js` or installed copies
 keep the old build. Opening the file from disk still works but skips the service worker.
 
-Settings sit behind the scores sheet: music, sound effects, haptics, the aim guide and the
-mode. Casual is endless; Rush adds a shot clock that tightens as you score and keeps its own
-board. The soundtrack is generated in the page, no files, and starts after the first tap.
+Settings sit behind the scores sheet: music, sound effects, haptics, the aim guide, the mode and
+a name for the online board. Casual is endless; Rush adds a shot clock that tightens as you
+score and keeps its own board. The soundtrack is generated in the page, no files, and starts
+after the first tap.
+
+## Publish
+`PUBLISHING.md` walks through hosting the game on GitHub Pages, standing up the online
+scoreboard on Cloudflare (`server/`), and the release routine: `npm run release`, then the git
+commands it prints. Link previews need your real address in the two `og:` tags in `index.html`;
+the release script refuses to ship the placeholder.
 
 ## Test
 `npm test` — headless Node checks (no dependencies): physics stays bounded and merges/game
@@ -29,8 +36,10 @@ orbs once per run, free first then ad-gated, and marks the run; the feel pass (s
 squash and dust, merge pop and flash, tier reveals, score roll, chain wash, slow motion, revive
 ghosts, the particle cap) works and switches off under reduced motion; settings persist and
 the master mute works; the music sequencer and its layers; Rush's shot clock, its pauses, its
-records and boards; the manifest, icons and service worker hold together (shell precached,
-stale caches dropped, cache-first offline).
+records and boards; the crash card catches a throwing frame; sharing, the landscape card and
+the install nudge; the online board posts a best score once and renders the shared top; the
+manifest, icons and service worker hold together (shell precached, stale caches dropped,
+cache-first offline). The suite is seeded, so it is the same run every time.
 
 `npm run icons` redraws `icons/` from `tools/icons.js` (the brass orb on felt). Only needed if
 the mark changes; the PNGs are checked in.

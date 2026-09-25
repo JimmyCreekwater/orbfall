@@ -15,7 +15,11 @@ file as the design record: it captures decisions already made so they don't get 
   shadows, filters, per-frame gradients, or DOM per ball.
 - Run `npm test` before and after any change to physics, scoring, persistence, input, or the
   PWA shell. The three suites (physics, functional, pwa) are headless Node (no deps) and take
-  a few seconds.
+  a few seconds. The harness seeds `Math.random` (`SEED`, default 1), so a run of the suite is
+  the same run every time; `SEED=7 npm test` explores another sequence.
+- Ship with `npm run release` (tools/release.js): it bumps the version into the worker's cache
+  name, refuses the placeholder domain in the Open Graph tags, runs the tests and prints the git
+  commands. Never edit the cache name in `sw.js` by hand. PUBLISHING.md is the owner's runbook.
 - Labels are sentence case ("best", "next", "undo"), no middle-dot metadata strings, no
   all-caps. Motion only in response to play (nothing idles); `prefers-reduced-motion` switches
   off shake, particles, squash, pop, flash, slow motion, ghosts, the chain wash and the rolling
@@ -26,8 +30,8 @@ file as the design record: it captures decisions already made so they don't get 
 Sections in order, each marked with a `/* ---------- name ---------- */` comment:
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
 sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
-settings sheet → simulation → rendering (static layers, sprites, tier signatures, effects) →
-layout & input → pwa → loop.
+settings sheet → online board → share + install nudge → simulation → rendering (static layers,
+sprites, tier signatures, effects) → layout & input → pwa → safety net → loop.
 
 ## Rules of the game (current)
 - 11 tiers (Mote … Sun). Two touching orbs of the same tier merge into the next tier at their
@@ -74,13 +78,16 @@ is added, an upward displacement clamp probably belongs beside it.
 
 ## Persistence
 Schema v2, one JSON blob under key `orbfall_v2`:
-`{best, bestTier, games, sum, revives, modes, opt, top:[rec…], runs:[rec…≤400], live}` where
+`{best, bestTier, games, sum, revives, modes, opt, cid, sent, hintedInstall, top:[rec…],
+runs:[rec…≤400], live}` where `cid` is the random 16-hex player id for the online board, `sent`
+is the best score already posted per mode, `hintedInstall` says the iPhone hint was dismissed,
 `rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush'}` (no `m` means
 Casual), `revives` is the lifetime revive count (it decides whether the next revive is free),
 `modes = {casual:{best,bestTier,games,sum}, rush:{…}}` holds the per-mode stats (`best`, `games`
 and `sum` at the top level stay as the overall figures; a save without `modes` migrates into
 Casual), `top` keeps 20 entries per mode, `opt` is the settings block
-(`{mute, sfx, music, haptics, aim, mode}`; unknown or mistyped values fall back to defaults),
+(`{mute, sfx, music, haptics, aim, mode, online, name}`; unknown or mistyped values fall back to
+defaults),
 and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m}`), flushed
 every 2.5 s while dirty and on
 `visibilitychange`/`pagehide`, restored on load. `persist()` is a no-op until the load has
@@ -254,6 +261,37 @@ counts, averages and bests, and a small "rush" tag sits under the best score in 
 is the difficulty ramp backlog #5 asked for, by another route; time attack was considered and
 left as a later mode on the same switch.
 
+## Online board (shipped 2026-09-24)
+`server/worker.js` is a Cloudflare Worker over one D1 table (`server/schema.sql`,
+`server/wrangler.toml`): `GET /top?mode=` returns the top 20 best-per-player rows, `POST /score`
+upserts `{cid, mode, name, score, tier}` keeping the higher score, rate limited to six posts a
+minute per hashed IP, with plausibility checks only (no accounts, so a determined cheater can
+post a fake score; that is the trade-off). The client side sits in the `online board` section:
+`BOARD_URL` (a knob, empty by default, which keeps everything local), `onlineOn()` needs the
+address, the `online` switch and a name; `syncOnline()` posts a mode's best in the background
+when it beats `save.sent`, after `recordRun()` and when the board opens, and announces the rank
+as a toast; the board's Online chip renders `loadOnline()`, cached a minute per mode, with the
+own row highlighted by `cid` and every message state covered (not connected, no name, off,
+loading, unreachable, empty). Names pass `cleanName()` (safe characters, twelve letters) on both
+ends and are escaped when rendered. The game never waits on the network. The harness stubs
+`fetch` (`g.fetchLog`, `g.fetchReply`).
+
+## Share, previews, landscape, install nudge (shipped 2026-09-24)
+`share()` uses the Web Share API with the score, the mode and the page address, falling back to
+the clipboard. Open Graph and Twitter tags plus `icons/share.png` (drawn by tools/icons.js) give
+link previews; the domain is a placeholder until the owner fills it in, and the release script
+refuses to ship it. A touch device held sideways (`vw > vh`, short height) pauses behind a
+"turn your phone" card via the `rotated` flag, which gates drops, physics and the Rush clock.
+After two finished runs the game-over card offers the deferred Android install prompt when the
+browser gave one, or a one-time iPhone Home Screen hint (`save.hintedInstall`), never when
+already standalone. The first-run hint gained a third line about Rush.
+
+## Safety net (shipped 2026-09-24)
+`frame()` wraps `frameBody()` in try/catch and keeps requesting frames; `window` error and
+unhandled-rejection listeners feed the same `fault()`, which pauses the run, stops the music and
+shows the "Something broke" card whose only button calls `reset()`. The harness can break and
+repair `render` to test it.
+
 ## Do-not-break list
 one-tap restart · run resume after app switch · save survives reload · undo marks on board ·
 sound stays off until the first gesture (WebAudio unlock) · body `touch-action:none` with the
@@ -263,4 +301,5 @@ it clears the undo snapshot · `window.storage` stays first in the store adapter
 `apple-mobile-web-app-*` meta tags and the `apple-touch-icon` link stay · sprites and layers
 rebuilt in `resize()` · `PARTS_MAX` cap · reduced motion switches every feel effect off ·
 every option write goes through `setOpt` · `top` keeps 20 per mode · the Rush clock runs on
-real time and pauses with the sheets · music starts only from a gesture.
+real time and pauses with the sheets · music starts only from a gesture · `BOARD_URL` empty
+keeps the board local and the game never waits on the network · release through the script.

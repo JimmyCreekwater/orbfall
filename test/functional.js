@@ -177,7 +177,7 @@ async function playToGameOver(g) {
   g = boot(os); await settle(); g.step(16.67);
   let q = g.dbg();
   check(q.opt.mute === false && q.opt.sfx && q.opt.music && q.opt.haptics && q.opt.aim && q.opt.mode === 'casual', 'options default to everything on, casual mode');
-  check(q.switches === 'music=true sfx=true haptics=true aim=true', 'the settings sheet shows four switches, all on');
+  check(q.switches === 'music=true sfx=true haptics=true aim=true online=true', 'the settings sheet shows five switches, all on');
   g.fire('scores:click'); g.step(16.67); g.fire('settings:click'); g.step(16.67); q = g.dbg();
   check(q.optsOpen && !q.boardOpen && q.paused === true, 'Settings opens from the scores sheet and pauses play');
   g.fire('optsclose:click'); g.step(16.67);
@@ -194,7 +194,7 @@ async function playToGameOver(g) {
   g.window.__setOpt('aim', false); g.window.__setOpt('music', false); await settle();
   check(JSON.parse(os.get('orbfall_v2')).opt.aim === false, 'option changes are persisted at once');
   g = boot(os); await settle(); g.step(16.67); q = g.dbg();
-  check(q.opt.mute && !q.opt.haptics && !q.opt.aim && !q.opt.music && q.soundOff && q.switches === 'music=false sfx=true haptics=false aim=false', 'a reload restores every option and the switches show them');
+  check(q.opt.mute && !q.opt.haptics && !q.opt.aim && !q.opt.music && q.soundOff && q.switches === 'music=false sfx=true haptics=false aim=false online=true', 'a reload restores every option and the switches show them');
   os.set('orbfall_v2', JSON.stringify(Object.assign(JSON.parse(os.get('orbfall_v2')), { opt: { mute: 'yes', mode: 'turbo', sfx: false } })));
   g = boot(os); await settle(); g.step(16.67); q = g.dbg();
   check(q.opt.mute === false && q.opt.mode === 'casual' && q.opt.sfx === false, 'malformed option values fall back to defaults, valid ones are kept');
@@ -279,6 +279,38 @@ async function playToGameOver(g) {
   g.window.innerWidth = 390; g.window.innerHeight = 844; g.fire('win:resize'); g.step(16.67);
   g.tap(180); g.step(16.67); q = g.dbg();
   check(!q.rotated && !q.rotateShown && q.drops === dropsBefore + 1, 'turning back resumes play');
+
+  // online board: off until connected, then best-per-player submissions and a shared top list
+  const ob = new Map();
+  g = boot(ob); await settle(); g.step(16.67);
+  check(/^[a-f0-9]{16}$/.test(g.dbg().cid), 'a random player id is made on first load');
+  check(g.window.__cleanName("<b>Jim!!</b> the great one") === 'bJimb the gr', 'names are stripped to safe characters and twelve letters');
+  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
+  check(g.dbg().filter === 'online' && g.els.rows._html.includes('not connected'), 'without a board address the Online tab says so');
+  g.window.__setBoard('https://board.test/'); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
+  check(g.els.rows._html.includes('Add a name'), 'with a board but no name it asks for one');
+  g.fire('close:click'); g.step(16.67);
+  g.window.__setOpt('name', 'Jim'); await settle();
+  check(g.dbg().onlineOn && g.fetchLog.length === 0, 'nothing is sent before a run is finished');
+  o = await playToGameOver(g); await settle(); await settle();
+  let post = g.fetchLog.find(f => f.url === 'https://board.test/score'), body = post && JSON.parse(post.init.body);
+  check(post && post.init.method === 'POST' && body.mode === 'casual' && body.name === 'Jim' && body.score === o.score && body.cid === g.dbg().cid, 'a finished run posts the best score with the name and the player id');
+  sv = JSON.parse(ob.get('orbfall_v2'));
+  check(sv.sent.casual === o.score && sv.cid === body.cid && g.dbg().floats.some(t => t.indexOf('Online rank') === 0), 'what was sent is remembered and the rank is announced');
+  const cid = body.cid;
+  g.fetchReply = (url) => url.indexOf('/top?mode=casual') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada', score: 9000, tier: 8, ts: Date.now() }, { cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : url.indexOf('/top') >= 0 ? { status: 500, body: { error: 'server' } } : { status: 200, body: { ok: true, rank: 2 } };
+  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
+  const rows = g.els.rows._html;
+  check(rows.includes('Ada') && rows.includes('class="you"') && rows.indexOf('Ada') < rows.indexOf('Jim'), 'the Online tab lists the shared top with your own row highlighted');
+  g.fire('modechips:click', { target: { getAttribute: () => 'rush' } }); await settle(); await settle();
+  check(g.els.rows._html.includes('Could not reach'), 'a failing board shows a message instead of breaking');
+  g.fire('close:click'); g.step(16.67);
+  const postsBefore = g.fetchLog.filter(f => f.url.endsWith('/score')).length;
+  g.fire('again:click'); g.step(16.67); await playToGameOver(g); await settle(); await settle();
+  const postsAfter = g.fetchLog.filter(f => f.url.endsWith('/score')).length;
+  check(g.dbg().score <= o.score ? postsAfter === postsBefore : postsAfter === postsBefore + 1, 'a lower run posts nothing, a new best posts once');
+  g.window.__setOpt('online', false); g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
+  check(g.els.rows._html.includes('Turn on the online board'), 'switching the board off in settings stops it');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

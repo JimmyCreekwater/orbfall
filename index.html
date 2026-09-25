@@ -94,6 +94,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .sw i{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--sage);transition:transform .18s,background .18s}
 .sw[aria-checked="true"]{background:var(--brass)}
 .sw[aria-checked="true"] i{transform:translateX(20px);background:var(--ivory)}
+.nm{width:136px;padding:9px 10px;border-radius:12px;border:1.5px solid rgba(184,149,90,.35);background:rgba(11,25,21,.6);
+  color:var(--ivory);font:inherit;font-weight:700;font-size:15px;-webkit-user-select:text;user-select:text}
 .chips{display:flex;gap:6px;margin-bottom:10px}
 .chips button{flex:1;padding:9px 0;border-radius:12px;border:1.5px solid rgba(184,149,90,.25);background:transparent;
   color:var(--sage);font-weight:700;font-size:13px;cursor:pointer}
@@ -201,6 +203,7 @@ var REVIVE_FREE=1;         // free revives before the reward hook gates them, co
 var RUSH_CLOCK=3;          // Rush: seconds to place a piece at score 0 ...
 var RUSH_CLOCK_MIN=1.5;    // ... shrinking to this by RUSH_CLOCK_BY points; at zero the piece drops where it is aimed
 var RUSH_CLOCK_BY=3000;
+var BOARD_URL='';          // online board: the address of the deployed worker (PUBLISHING.md); empty keeps the board local
 var RUNS_KEEP=400;         // recent runs kept for the day/week/month boards
 var TOP_KEEP=20;           // all-time entries kept regardless of age
 var BOARD_ROWS=10;
@@ -254,9 +257,9 @@ var cur=null,nxt=null,aimX=LW/2,canDropAt=0,tNow=0,dragging=false;
 var state='play',paused=false,shake=0,warn=0,hint=1,nextId=1,overShownAt=0;
 var snapshot=null,undosFree=UNDO_FREE_PER_RUN,undosUsed=0,revivesUsed=0,lastRec=null,adTimer=null;
 var dirty=false,lastFlush=0,filter='all',loaded=false;
-var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual'};   // persisted in the save as opt
+var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual',online:true,name:''};   // persisted in the save as opt
 var opt=copy(OPT_DEFAULTS),swEls={};
-var save={best:0,bestTier:0,games:0,sum:0,revives:0,top:[],runs:[],live:null,opt:opt,modes:newModes(),hintedInstall:false};
+var save={best:0,bestTier:0,games:0,sum:0,revives:0,top:[],runs:[],live:null,opt:opt,modes:newModes(),hintedInstall:false,cid:'',sent:{casual:0,rush:0}};
 function newModes(){return {casual:{best:0,bestTier:0,games:0,sum:0},rush:{best:0,bestTier:0,games:0,sum:0}};}
 function stat(m){return save.modes[m==='rush'?'rush':'casual'];}
 function modeOf(r){return r.m==='rush'?'rush':'casual';}
@@ -321,9 +324,12 @@ function adopt(d){
   save.best=d.best||0; save.bestTier=d.bestTier||0; save.games=d.games||0; save.sum=d.sum||0; save.revives=d.revives||0;
   save.top=Array.isArray(d.top)?d.top:[]; save.runs=Array.isArray(d.runs)?d.runs:[]; save.live=d.live||null;
   save.modes=readModes(d); readOpts(d.opt); save.hintedInstall=!!d.hintedInstall;
+  save.cid=(typeof d.cid==='string'&&/^[a-f0-9]{16}$/.test(d.cid))?d.cid:'';
+  save.sent={casual:(d.sent&&d.sent.casual)|0,rush:(d.sent&&d.sent.rush)|0};
 }
 function applyLoaded(){
   loaded=true; if(save.games>0||save.best>0)hint=0;
+  if(!/^[a-f0-9]{16}$/.test(save.cid))save.cid=newCid();
   if(state==='play'&&drops===0)runMode=opt.mode;
   var L=save.live; if(L&&Array.isArray(L.b)&&L.b.length&&state==='play'&&drops===0)restoreLive(L);
   startBest=stat(runMode).best; bestShown=score>startBest;
@@ -370,7 +376,7 @@ function recordRun(){
   save.games++; save.sum+=score;
   if(score>save.best)save.best=score; if(runBestTier>save.bestTier)save.bestTier=runBestTier;
   var st=stat(runMode); st.games++; st.sum+=score; if(score>st.best)st.best=score; if(runBestTier>st.bestTier)st.bestTier=runBestTier;
-  lastRec=rec; save.live=null; persist();
+  lastRec=rec; save.live=null; persist(); syncOnline(true);
 }
 function unrecordRun(){
   if(!lastRec)return;
@@ -690,7 +696,7 @@ function updateBar(){
 }
 
 /* ---------- scoreboard ---------- */
-var FILTERS=[['all','All time'],['day','Day'],['week','Week'],['month','Month']];
+var FILTERS=[['all','All'],['day','Day'],['week','Week'],['month','Month'],['online','Online']];
 var WINDOWS={day:864e5,week:7*864e5,month:30*864e5};
 for(var fi=0;fi<FILTERS.length;fi++){
   var cb=document.createElement('button'); cb.type='button'; cb.textContent=FILTERS[fi][1]; cb.setAttribute('data-f',FILTERS[fi][0]);
@@ -723,6 +729,7 @@ function renderBoard(){
   for(i=0;i<kids.length;i++)kids[i].classList.toggle('on',kids[i].getAttribute('data-f')===filter);
   kids=modeChipsEl.children;
   for(i=0;i<kids.length;i++)kids[i].classList.toggle('on',kids[i].getAttribute('data-m')===boardMode);
+  if(filter==='online'){renderOnline();return;}
   var D=boardData(),list=D.sorted.slice(0,BOARD_ROWS),html='';
   statsEl.textContent=D.count?(D.count+(D.count===1?' run':' runs')+', average '+fmt(D.avg)):'';
   if(!list.length){rowsEl.innerHTML='<li class="empty">No runs here yet. Every finished run lands on this board.</li>';return;}
@@ -735,7 +742,7 @@ function renderBoard(){
   }
   rowsEl.innerHTML=html;
 }
-function openBoard(){ paused=true; boardMode=runMode; renderBoard(); dimEl.classList.add('show'); sheetEl.classList.add('show'); updateBar(); }
+function openBoard(){ paused=true; boardMode=runMode; renderBoard(); dimEl.classList.add('show'); sheetEl.classList.add('show'); updateBar(); syncOnline(false); }
 function closeBoard(){ paused=false; dimEl.classList.remove('show'); sheetEl.classList.remove('show'); updateBar(); }
 function boardOpen(){return sheetEl.classList.contains('show');}
 
@@ -744,7 +751,8 @@ var OPTS=[
   ['music','Music','The generated track'],
   ['sfx','Sound effects','Merges, landings, the danger tick'],
   ['haptics','Haptics','Vibration on merges and landings'],
-  ['aim','Aim guide','Landing line and circle under the piece']
+  ['aim','Aim guide','Landing line and circle under the piece'],
+  ['online','Online board','Your name and best score go to the shared board']
 ];
 function buildOpts(){
   optListEl.innerHTML=''; swEls={};
@@ -757,6 +765,13 @@ function buildOpts(){
     sw.addEventListener('click',function(){ audio(); setOpt(o[0],!opt[o[0]]); });
     row.appendChild(lab); row.appendChild(sw); optListEl.appendChild(row); swEls[o[0]]=sw;
   })(OPTS[i]);
+  var nrow=document.createElement('div'); nrow.className='opt';
+  var nlab=document.createElement('div'),nsp=document.createElement('span'),nsm=document.createElement('small');
+  nsp.textContent='Name'; nsm.textContent='Shown on the online board, up to 12 letters'; nlab.appendChild(nsp); nlab.appendChild(nsm);
+  nameEl=document.createElement('input'); nameEl.type='text'; nameEl.maxLength=12; nameEl.className='nm'; nameEl.autocomplete='off';
+  nameEl.setAttribute('aria-label','Name for the online board');
+  nameEl.addEventListener('change',function(){ setOpt('name',cleanName(nameEl.value)); nameEl.value=opt.name; });
+  nrow.appendChild(nlab); nrow.appendChild(nameEl); optListEl.appendChild(nrow);
   var mrow=document.createElement('div'); mrow.className='opt';
   var mlab=document.createElement('div'),msp=document.createElement('span'),msm=document.createElement('small');
   msp.textContent='Mode'; msm.textContent='Casual is endless. Rush adds a shot clock that tightens as you score.'; mlab.appendChild(msp); mlab.appendChild(msm);
@@ -764,7 +779,7 @@ function buildOpts(){
   mrow.appendChild(mlab); mrow.appendChild(modesOptEl); optListEl.appendChild(mrow);
   buildModes(); buildBoardModes();
 }
-var modeBtns=[],modesOptEl=null;
+var modeBtns=[],modesOptEl=null,nameEl=null;
 function buildModes(){   /* the same Casual / Rush pair on the game-over card and in settings; it sets the next run's mode */
   modeBtns=[];
   [modesEl,modesOptEl].forEach(function(h){ if(!h)return; h.innerHTML='';
@@ -775,7 +790,7 @@ function buildModes(){   /* the same Casual / Rush pair on the game-over card an
   });
 }
 function syncModes(){ for(var i=0;i<modeBtns.length;i++)modeBtns[i].classList.toggle('on',modeBtns[i].getAttribute('data-m')===opt.mode); }
-function syncOpts(){ for(var k in swEls)swEls[k].setAttribute('aria-checked',opt[k]?'true':'false'); }
+function syncOpts(){ for(var k in swEls)swEls[k].setAttribute('aria-checked',opt[k]?'true':'false'); if(nameEl)nameEl.value=opt.name; }
 function setOpt(k,v){ opt[k]=v; applyOpts(); persist(); }
 function applyOpts(){
   soundBtn.classList.toggle('off',opt.mute); soundBtn.setAttribute('aria-label',opt.mute?'Sound off':'Sound on');
@@ -787,6 +802,53 @@ function openOpts(){ paused=true; syncOpts(); sheetEl.classList.remove('show'); 
 function closeOpts(){ paused=false; dimEl.classList.remove('show'); optsEl.classList.remove('show'); updateBar(); }
 function optsOpen(){return optsEl.classList.contains('show');}
 function closeSheets(){ if(optsOpen())closeOpts(); else if(boardOpen())closeBoard(); }
+
+/* ---------- online board: best score per player and mode, sent with a name the player typed ---------- */
+/* BOARD_URL points at server/worker.js once it is deployed. The game never waits on the network: a finished run
+   posts the mode's best in the background if it beats what was sent before (save.sent), and the Online tab of
+   the board fetches the top 20, cached a minute per mode. The player id (save.cid) is random, made once. */
+var onlineCache={},onlineBusy=false;
+function newCid(){ var s='',i; try{ var a=new Uint8Array(8); (window.crypto||crypto).getRandomValues(a); for(i=0;i<8;i++)s+=(a[i]<16?'0':'')+a[i].toString(16); return s; }catch(e){ s=''; for(i=0;i<16;i++)s+=Math.floor(Math.random()*16).toString(16); return s; } }
+function cleanName(s){return String(s||'').replace(/[^\w .'-]/g,'').trim().slice(0,12);}
+function onlineOn(){return !!BOARD_URL&&opt.online&&cleanName(opt.name).length>0;}
+function boardApi(p){return BOARD_URL.replace(/\/$/,'')+p;}
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fetchJSON(url,init,ms){
+  if(typeof fetch!=='function')return Promise.reject(new Error('no fetch'));
+  var ctl=(typeof AbortController==='function')?new AbortController():null,t=null;
+  init=init||{}; if(ctl){init.signal=ctl.signal;t=setTimeout(function(){ctl.abort();},ms||6000);}
+  return fetch(url,init).then(function(r){ if(t)clearTimeout(t); if(!r.ok)throw new Error('http '+r.status); return r.json(); },function(e){ if(t)clearTimeout(t); throw e; });
+}
+function syncOnline(announce){
+  if(!onlineOn()||onlineBusy)return;
+  var m=['casual','rush'].filter(function(k){return stat(k).best>(save.sent[k]||0);})[0]; if(!m)return;
+  var best=stat(m).best,body={cid:save.cid,mode:m,name:cleanName(opt.name),score:best,tier:stat(m).bestTier};
+  onlineBusy=true;
+  fetchJSON(boardApi('/score'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},8000).then(function(r){
+    onlineBusy=false;
+    if(r&&r.ok){ save.sent[m]=best; persist(); delete onlineCache[m]; if(announce&&r.rank)toast('Online rank #'+r.rank+(m==='rush'?' in Rush':'')); syncOnline(announce); }
+  },function(){ onlineBusy=false; });
+}
+function loadOnline(m){
+  var c=onlineCache[m]; if(c&&Date.now()-c.at<60000)return Promise.resolve(c.rows);
+  return fetchJSON(boardApi('/top?mode='+m),{method:'GET'},6000).then(function(r){ var rows=(r&&Array.isArray(r.rows))?r.rows:[]; onlineCache[m]={rows:rows,at:Date.now()}; return rows; });
+}
+function renderOnline(){
+  rowsEl.innerHTML=''; statsEl.textContent='';
+  if(!BOARD_URL){rowsEl.innerHTML='<li class="empty">The online board is not connected yet.</li>';return;}
+  if(!onlineOn()){rowsEl.innerHTML='<li class="empty">'+(opt.online?'Add a name in settings to join the online board.':'Turn on the online board in settings.')+'</li>';return;}
+  statsEl.textContent='Best per player'; rowsEl.innerHTML='<li class="empty">Loading...</li>';
+  var m=boardMode;
+  loadOnline(m).then(function(rows){ if(!boardOpen()||filter!=='online'||boardMode!==m)return; renderOnlineRows(rows); },
+    function(){ if(!boardOpen()||filter!=='online'||boardMode!==m)return; rowsEl.innerHTML='<li class="empty">Could not reach the online board. Your best is kept and sent later.</li>'; });
+}
+function renderOnlineRows(rows){
+  if(!rows.length){rowsEl.innerHTML='<li class="empty">No scores here yet. Yours could be first.</li>';return;}
+  var html='';
+  for(var i=0;i<rows.length;i++){var r=rows[i],you=r.cid===save.cid,T=TIERS[r.tier|0]||TIERS[0];
+    html+='<li'+(you?' class="you"':'')+'><span class="rk">'+(i+1)+'</span><span class="sc">'+fmt(r.score|0)+'<small><i style="background:'+T.c+'"></i>'+esc(r.name)+'</small></span><span class="wh">'+when(r.ts||Date.now())+'</span></li>';}
+  rowsEl.innerHTML=html;
+}
 
 /* ---------- share, install nudge ---------- */
 function share(){
@@ -1145,6 +1207,7 @@ soundBtn.addEventListener('click',function(e){e.stopPropagation();toggleSound();
 chipsEl.addEventListener('click',function(e){var f=e.target&&e.target.getAttribute&&e.target.getAttribute('data-f');if(f){filter=f;renderBoard();}});
 modeChipsEl.addEventListener('click',function(e){var m=e.target&&e.target.getAttribute&&e.target.getAttribute('data-m');if(m){boardMode=m;renderBoard();}});
 window.addEventListener('keydown',function(e){
+  if(e.target&&e.target.tagName==='INPUT')return;
   if(e.key==='Escape'){ if(adTimer)cancelReward(); else closeSheets(); return; }
   if(e.key==='ArrowLeft')aimX=Math.max(BOX.x,aimX-14);
   else if(e.key==='ArrowRight')aimX=Math.min(BOX.x+BOX.w,aimX+14);

@@ -25,7 +25,7 @@ function ctxStub() {
 
 function makeEnv(storeMap, opts) {
   opts = opts || {};
-  const H = {}, els = {};
+  const H = {}, els = {}; let anonId = 0;
   function el(id) {
     const attrs = {}, classes = new Set();
     const e = {
@@ -46,7 +46,7 @@ function makeEnv(storeMap, opts) {
     hidden: false,
     getElementById(id) { return els[id] || (els[id] = el(id)); },
     addEventListener(n, f) { (H['doc:' + n] = H['doc:' + n] || []).push(f); },
-    createElement() { return el('anon' + Math.random()); }
+    createElement() { return el('anon' + (++anonId)); }
   };
   const timers = []; let tid = 0;
   const win = {
@@ -83,6 +83,9 @@ function makeEnv(storeMap, opts) {
   g.H = H; g.els = els; g.timers = timers;
   g.fire = (key, ev) => { (H[key] || []).forEach(f => f(ev || {})); };
   g.dbg = () => win.__dbg();
+  g.fetchLog = [];   // the game's network calls; fetchReply decides the answer
+  g.fetchReply = (url) => (url.indexOf('/top') >= 0 ? { status: 200, body: { rows: [] } } : { status: 200, body: { ok: true, rank: 1 } });
+  g.fetch = (url, init) => { g.fetchLog.push({ url, init }); const r = g.fetchReply(url, init); return Promise.resolve({ ok: r.status < 400, status: r.status, json: () => Promise.resolve(r.body) }); };
   g.reset = () => win.__reset();
   g.tap = (x) => { g.fire('c:pointerdown', { clientX: x, pointerId: 1 }); g.fire('c:pointerup', { clientX: x, pointerId: 1 }); };
   return g;
@@ -92,7 +95,7 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
 src = src.replace(/\}\)\(\);\s*$/, `
 window.__reset=reset;
-window.__setOpt=setOpt;window.__clockFor=clockFor;
+window.__setOpt=setOpt;window.__clockFor=clockFor;window.__setBoard=function(u){BOARD_URL=u;};window.__cleanName=cleanName;
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
 window.__burst=function(n){for(var i=0;i<n;i++)fx(180,300,8,true);};
@@ -109,6 +112,7 @@ window.__dbg=function(){
     runMode:runMode,clock:clock,clockMax:clockMax,boardMode:boardMode,modes:JSON.parse(JSON.stringify(save.modes)),startBest:startBest,
     faulted:faulted,faultCount:faultCount,faultShown:faultEl.classList.contains('show'),
     rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
+    cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
     modeUI:modeBtns.map(function(b){return b.getAttribute('data-m')+(b.classList.contains('on')?'*':'');}).join(' '),
     switches:Object.keys(swEls).map(function(k){return k+'='+swEls[k].getAttribute('aria-checked');}).join(' '),soundOff:soundBtn.classList.contains('off'),
     games:save.games,runs:save.runs.length,top:save.top.length,drops:drops,live:!!save.live,tier:runBestTier,store:store.kind,
@@ -118,8 +122,8 @@ window.__dbg=function(){
 
 function boot(storeMap, opts) {
   const g = makeEnv(storeMap, opts);
-  const fn = new Function('window', 'document', 'performance', 'navigator', 'requestAnimationFrame', 'setTimeout', 'setInterval', 'clearInterval', src);
-  fn(g.window, g.document, g.performance, g.navigator, g.requestAnimationFrame, g.setTimeout, g.setInterval, g.clearInterval);
+  const fn = new Function('window', 'document', 'performance', 'navigator', 'requestAnimationFrame', 'setTimeout', 'setInterval', 'clearInterval', 'fetch', src);
+  fn(g.window, g.document, g.performance, g.navigator, g.requestAnimationFrame, g.setTimeout, g.setInterval, g.clearInterval, g.fetch);
   return g;
 }
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
