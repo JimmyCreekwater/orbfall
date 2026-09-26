@@ -318,7 +318,7 @@ async function playToGameOver(g) {
   const wm = g.window.__wm();
   check(['r', 'b', 'f', 'a', 'l'].every(k => wm[k].length === 7 && wm[k].every(row => row.length === 5)), 'the wordmark has five glyphs of 5 by 7 pixels');
   const svg = g.window.__wmSvg(3);
-  check(svg.startsWith('<svg') && (svg.match(/<rect /g) || []).length > 60 && svg.includes('<circle') && g.els.wm._html === svg && g.els.wmhome._html.startsWith('<svg') && g.els.wmpause._html === svg, 'the card, the home menu and the pause sheet carry the mark as inline SVG');
+  check(svg.startsWith('<svg') && (svg.match(/<rect /g) || []).length > 60 && svg.includes('<circle') && g.els.wm._html === g.window.__wmSvg(3, 'o') && g.els.wmhome._html.startsWith('<svg') && g.els.wmpause._html === g.window.__wmSvg(3, 'p') && g.els.wmname._html.includes('id="wmgn"') && g.els.wm._html !== g.els.wmpause._html, 'the card, the menu, the pause sheet and the name card carry the mark as inline SVG, each with its own gradient id');
 
   // home menu and pause sheet: cold launches, Play / Continue / New run / Play today, the mark as the pause button
   const hm = new Map();
@@ -349,7 +349,7 @@ async function playToGameOver(g) {
   check(q.homeOn && q.playLabel === 'Continue' && q.n >= 1, 'a relaunch with a saved run offers Continue');
   g.fire('newrun:click'); g.step(16.67);
   check(!g.dbg().homeOn && g.dbg().drops === 0 && g.dbg().n === 0, 'New run starts over');
-  const todayNow = g.window.__daily(new Date().getFullYear() + '-' + (new Date().getMonth() + 1) + '-' + new Date().getDate());
+  const todayNow = g.window.__daily(new Date().getUTCFullYear() + '-' + (new Date().getUTCMonth() + 1) + '-' + new Date().getUTCDate());
   mark(); g.fire('pausehome:click'); g.fire('today:click'); g.step(16.67); q = g.dbg();
   check(!q.homeOn && q.seed === todayNow, 'Play today starts a run on the daily seed');
   mark(); g.fire('restart:click'); g.step(16.67); q = g.dbg();
@@ -404,7 +404,7 @@ async function playToGameOver(g) {
   check(g.shares.length === 1 && g.shares[0].url === 'https://orb.test/play/#s=ABCDEF&m=rush' && g.shares[0].text.includes('ABCDEF'), 'Challenge shares the seed as a link');
   const dl = new Map();
   g = boot(dl); await settle(); g.step(16.67);
-  g.window.__setSeed(g.window.__daily(new Date().getFullYear() + '-' + (new Date().getMonth() + 1) + '-' + new Date().getDate())); g.reset(); g.step(16.67);
+  g.window.__setSeed(g.window.__daily(new Date().getUTCFullYear() + '-' + (new Date().getUTCMonth() + 1) + '-' + new Date().getUTCDate())); g.reset(); g.step(16.67);
   o = await playToGameOver(g); await settle();
   sv = JSON.parse(dl.get('orbfall_v2'));
   check(sv.runs[0].sd === g.dbg().seed && sv.runs[0].sd.length === 6, 'a run on today’s seed is recorded with the seed');
@@ -430,7 +430,7 @@ async function playToGameOver(g) {
   g.fire('r5:click'); g.step(16.67);
   check(!g.dbg().rescueOn && g.els.adbox.classList.contains('show') && g.dbg().adk === '', 'Undo 5 asks for one ad');
   for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
-  check(q.state === 'play' && q.drops === dropsAtOver - 5 && q.undosUsed === 5 && q.used5, 'after the ad five moves are undone');
+  check(q.state === 'play' && q.drops === dropsAtOver - 5 && q.undosUsed === 5 && q.used5 && q.rescueLeft === 1, 'after the ad five moves are undone, one rescue left');
   for (let d = 0; d < 6; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
   await playToGameOver(g); g.fire('revive:click'); q = g.dbg();
   check(q.rescue.split('|')[1] === 'Used(off)' && q.rescue.split('|')[2] === '2 ads', 'undo 5 is spent for this run, undo 10 still offered');
@@ -442,8 +442,9 @@ async function playToGameOver(g) {
   g.fire('adcancel:click'); g.step(16.67); q = g.dbg();
   check(q.state === 'over' && !q.used10 && q.drops === dropsAtOver2, 'cancelling the second ad grants nothing');
   g.fire('revive:click'); g.fire('r10:click'); for (let k = 0; k < 700; k++) g.step(16.67); q = g.dbg();
-  check(q.state === 'play' && q.drops === dropsAtOver2 - 10 && q.used10 && q.undosUsed === 15, 'two full ads undo ten moves');
-  await playToGameOver(g); await settle();
+  check(q.state === 'play' && q.drops === dropsAtOver2 - 10 && q.used10 && q.undosUsed === 15 && q.rescueLeft === 0, 'two full ads undo ten moves, and that was the second rescue');
+  await playToGameOver(g); await settle(); q = g.dbg();
+  check(q.rescueBtn === 'No rescues left(off)' && q.rescueCap === 'Both rescues used this run', 'after two rescues the card says so and the button is crossed out');
   g.fire('scores:click'); g.step(16.67);
   check(!g.els.rows._html.includes('class="clean"') && g.els.rows._html.includes('↶15'), 'a rescued run carries no clean badge, only its undo count');
   g.fire('close:click'); g.step(16.67); g.fire('again:click'); g.step(16.67);
@@ -451,6 +452,68 @@ async function playToGameOver(g) {
   check(q.cleanShown, 'a run finished without rescues shows Clean run on the card');
   g.fire('scores:click'); g.step(16.67);
   check((g.els.rows._html.match(/class="clean"/g) || []).length === 1, 'and wears the badge on the board');
+
+  // names: clearly offensive words are refused, ordinary words that contain them are not
+  const ok = g.window.__nameOK;
+  check(ok('Glass') && ok('Cassandra') && ok('Scunthorpe') && ok('assassin') && ok('Dick') && ok('Grape Nuts') && ok('Kumar'), 'ordinary names pass, including ones that contain a swear as letters');
+  check(!ok('Ass') && !ok('sh1t') && !ok('F u c k') && !ok('fuckface') && !ok('Nigger') && !ok('b1tch') && !ok('SLUT99') && !ok('cunt'), 'clear swears and slurs are refused, with leetspeak and spacing undone');
+  const nb = new Map();
+  g = boot(nb, { home: true, nameGate: true, location: { hash: '', protocol: 'https:', href: 'https://orb.test/', pathname: '/', search: '' } }); await settle(); g.step(16.67); q = g.dbg();
+  check(q.nameOn && !q.homeOn && q.paused, 'a first launch asks for a name before the menu');
+  g.els.namein.value = 'Ass'; g.fire('namego:click'); q = g.dbg();
+  check(q.nameOn && q.nameWarn === 'Pick another name.', 'an offensive name is refused with a hint');
+  g.els.namein.value = ''; g.fire('namego:click'); check(g.dbg().nameWarn === 'A name, please.', 'an empty name is refused');
+  g.els.namein.value = 'Glass'; g.fire('namego:click'); await settle(); q = g.dbg();
+  check(!q.nameOn && q.homeOn && q.opt.name === 'Glass' && JSON.parse(nb.get('orbfall_v2')).opt.name === 'Glass', 'Glass passes, is saved, and the menu opens');
+  g = boot(nb, { home: true, nameGate: true, location: { hash: '', protocol: 'https:', href: 'https://orb.test/', pathname: '/', search: '' } }); await settle(); g.step(16.67);
+  check(!g.dbg().nameOn && g.dbg().homeOn, 'a later launch with a name goes straight to the menu');
+
+  // seeds by hand: the box opens on today, Random makes a code, typed seeds are cleaned, and the run plays it
+  const daily2 = g.window.__daily(new Date().getUTCFullYear() + '-' + (new Date().getUTCMonth() + 1) + '-' + new Date().getUTCDate());
+  g.fire('seedother:click'); q = g.dbg();
+  check(q.seedBoxOn && q.paused && q.seedIn === daily2, 'Other seed opens a box preset to today');
+  g.fire('seedrandom:click'); q = g.dbg();
+  check(/^[A-HJKMNP-TV-Z2-9]{6}$/.test(q.seedIn) && q.seedIn !== daily2, 'Random fills a fresh six-letter code');
+  g.els.seedin.value = ''; g.fire('seedgo:click'); check(g.dbg().seedBoxOn && g.dbg().floats.some(t => t.indexOf('Type a seed') === 0), 'an empty seed is not played');
+  g.els.seedin.value = 'pizza 42!'; g.fire('seedgo:click'); g.step(16.67); q = g.dbg();
+  check(!q.seedBoxOn && !q.homeOn && q.seed === 'PIZZA42' && q.state === 'play', 'a typed seed is cleaned to letters and digits and the run starts on it');
+  check(g.window.__cleanSeed('  hello-world.2026  ') === 'HELLOWORLD20', 'seeds are uppercased and cut to twelve');
+
+  // share box: without a share sheet, Share and Challenge show the text with a Copy button
+  delete g.navigator.share;
+  g.fire('share:click'); q = g.dbg();
+  check(q.shareOn && q.paused && q.shareText.indexOf('I scored') === 0 && q.shareText.includes('PIZZA42'), 'Share without a share sheet opens the text box');
+  g.fire('sharecopy:click'); await settle(); q = g.dbg();
+  check(g.copied === q.shareText && !q.shareOn, 'Copy puts the text on the clipboard and closes the box');
+  g.fire('challenge:click'); q = g.dbg();
+  check(q.shareOn && q.shareText.includes('seed PIZZA42') && q.shareText.includes('#s=PIZZA42'), 'Challenge does the same with the seed link');
+  g.fire('sharedone:click'); check(!g.dbg().shareOn && !g.dbg().paused, 'Done closes it');
+
+  // the seed board: a seeded run posts to the seed table, the Seed and Today chips read from it
+  const sb = new Map();
+  g = boot(sb); await settle(); g.step(16.67);
+  g.window.__setBoard('https://board.test/'); g.window.__setOpt('name', 'Jim'); g.window.__setSeed('K7Q2ZD'); g.reset(); g.step(16.67);
+  o = await playToGameOver(g); await settle(); await settle();
+  const seedPost = g.fetchLog.find(f => f.url === 'https://board.test/seed');
+  check(seedPost && JSON.parse(seedPost.init.body).seed === 'K7Q2ZD' && JSON.parse(seedPost.init.body).score === o.score && JSON.parse(sb.get('orbfall_v2')).seedSent['K7Q2ZD|casual'] === o.score, 'a seeded run posts its best to the seed board and remembers it');
+  g.fetchReply = (url) => url.indexOf('/seed?seed=K7Q2ZD') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada', score: 9000, tier: 8, ts: Date.now() }, { cid: g.dbg().cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : { status: 200, body: { rows: [], ok: true, rank: 1 } };
+  g.fire('scores:click'); g.step(16.67); q = g.dbg();
+  check(q.viewSeed === 'K7Q2ZD', 'the board knows the run’s seed');
+  g.fire('chips:click', { target: { getAttribute: () => 'seed' } }); g.fire('modechips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
+  check(g.fetchLog.some(f => f.url === 'https://board.test/seed?seed=K7Q2ZD&mode=casual') && g.els.rows._html.includes('Ada') && g.els.rows._html.includes('class="you"') && g.els.stats.textContent.indexOf('Seed K7Q2ZD') === 0, 'Seed + Online shows both players on that seed with your row highlighted');
+  g.fire('chips:click', { target: { getAttribute: () => 'today' } }); await settle(); await settle();
+  check(g.fetchLog.some(f => f.url === 'https://board.test/seed?seed=' + daily2 + '&mode=casual'), 'Today + Online reads today’s seed board');
+
+  // merge motes: every pop sheds motes that drift up and fade into the sky
+  g = boot(new Map()); await settle(); g.step(16.67);
+  let sawDrift = 0;
+  for (let i = 0; i < 1500 && g.dbg().state !== 'over'; i++) { g.step(16.67); if (i % 30 === 10) g.tap(40 + Math.random() * 310); const q2 = g.dbg(); if (q2.drift > sawDrift) sawDrift = q2.drift; }
+  check(sawDrift > 0, 'a merge sheds drifting motes (' + sawDrift + ' at most)');
+  for (let k = 0; k < 700; k++) g.step(16.67);
+  check(g.dbg().drift === 0, 'they fade away within twelve seconds');
+  g = boot(new Map(), { reduced: true }); await settle(); g.step(16.67);
+  for (let i = 0; i < 1500 && g.dbg().state !== 'over'; i++) { g.step(16.67); if (i % 30 === 10) g.tap(40 + Math.random() * 310); }
+  check(g.dbg().drift === 0, 'and none appear under reduced motion');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

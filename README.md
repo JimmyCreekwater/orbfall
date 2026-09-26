@@ -12,12 +12,15 @@ Any static host works. Locally: `npx serve .` then open the URL on your phone, o
 over, s opens scores, m mutes, Escape pauses). Scores and the in-progress run are saved in the
 browser's localStorage.
 
-The game opens on a menu: Play, the mode, Play today (everyone gets the same pieces on the
-day's seed), Scores, Settings and Challenge. The brass mark at the top of the play screen is
-the pause button. Challenge shares a link with a six-letter seed; whoever opens it plays the
-same sequence of pieces. At game over, Rescue this run offers Undo 1 (free once), Undo 5 (an
-ad), Undo 10 (two ads) and Clear the smallest orbs, each once per run; runs finished without
-any rescue wear a ✦ on the board.
+The first launch asks for a name (it goes on the boards; clearly offensive names are refused, ordinary
+words like Glass pass). Then the game opens on a menu: Play, the mode, Play today (everyone gets the same
+pieces on the day's seed, which rolls over at midnight UTC), Other seed (type any word or number, or take a
+random code; friends on the same seed get the same pieces), Scores, Settings and Challenge. The brass mark at the top of the play screen is
+the pause button. Challenge shares a link with the seed; whoever opens it plays the same sequence of pieces, and the
+board's Seed and Today tabs (Online) show everyone's best on that seed. Where there is no share sheet,
+Share and Challenge show the text with a Copy button. At game over, Rescue this run offers Undo 1 (free
+once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets two rescues, then the
+button is struck through; runs finished without any rescue wear a ✦ on the board.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
 Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cached by `sw.js`,
@@ -46,7 +49,8 @@ ghosts, the particle cap) works and switches off under reduced motion; settings 
 the master mute works; the music sequencer and its layers; Rush's shot clock, its pauses, its
 records and boards; seeds deal the same pieces, survive undo and reload, start from links and
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
-chooser's ring, ad counts, caps and the clean badge; the crash card catches a throwing frame;
+chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
+and random seeds; the share box; the seed board; merge motes; the crash card catches a throwing frame;
 sharing, the landscape card and
 the install nudge; the online board posts a best score once and renders the shared top; the
 manifest, icons and service worker hold together (shell precached, stale caches dropped,
@@ -58,5 +62,5 @@ checked in.
 
 ## Working on it with Claude Code
 `CLAUDE.md` holds the design record, the physics notes, the persistence schema and an ordered
-backlog (items 1–3 shipped). A good next prompt: "Read CLAUDE.md, run npm test, then do
-backlog item 4, keeping the tests green and adding one for the daily seed."
+backlog (items 1–4 and 7 shipped). A good next prompt: "Read CLAUDE.md, run npm test, then do
+backlog item 5, keeping the tests green."

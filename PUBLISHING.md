@@ -44,8 +44,10 @@ address lines from step 4 and release again.
 ## Part 2: the online scoreboard (Cloudflare)
 
 The board is a tiny program (`server/worker.js`) and a tiny database that live on Cloudflare's free plan.
-Players who type a name in Settings send their best score per mode; the board's **Online** tab shows the top
-20. Nothing else is collected: a random player id the game makes up, the name, the score and the size reached.
+Players send their best score per mode, and their best on each seed they play (today's seed, a challenge, a
+typed seed); the board's **Online** tab shows the top 20, and its **Today** and **Seed** tabs the top 20 on that
+seed. Nothing else is collected: a random player id the game makes up, the name, the score, the size reached
+and the seed. Names are checked for slurs on the phone and again by the worker.
 Visitors' addresses are hashed and forgotten after two minutes; they only slow down floods.
 
 You need: a free Cloudflare account, and Node (you have it, the tests use it).
@@ -67,7 +69,7 @@ You need: a free Cloudflare account, and Node (you have it, the tests use it).
    ```
    It prints a block with a `database_id = "…"` line. Open `server/wrangler.toml` and paste that id in place of
    `PASTE-THE-ID-PRINTED-BY-wrangler-d1-create`. While you are there, change `SALT` to any random words.
-4. **Create the table.**
+4. **Create the tables.** Run this again whenever `server/schema.sql` changes; it only adds what is missing.
 
    ```bash
    wrangler d1 execute orbfall-board --remote --file=schema.sql
@@ -83,8 +85,12 @@ You need: a free Cloudflare account, and Node (you have it, the tests use it).
 7. **Try it.** In the game: Settings → type a name → play a run → open Scores → **Online**. Your score should be
    there. From a second phone, another name and score should appear on both.
 
-Changing the board later: edit `server/worker.js`, run `wrangler deploy` again. The game does not need a new
-release for that. To wipe the board: `wrangler d1 execute orbfall-board --remote --command "DELETE FROM scores"`.
+Changing the board later: edit `server/worker.js`, run `wrangler deploy` again; if `schema.sql` changed, run
+step 4 first. The game does not need a new release for that. To wipe the boards:
+`wrangler d1 execute orbfall-board --remote --command "DELETE FROM scores; DELETE FROM seeds"`.
+
+**Deployed the board before 2026-09-25?** The seed board needs the new table and the new worker: from
+`orbfall/server`, run step 4 and step 5 again.
 
 ## Part 3: before you tell people
 
@@ -98,6 +104,7 @@ release for that. To wipe the board: `wrangler d1 execute orbfall-board --remote
 ## What the game stores and where
 
 On the phone: scores, settings and the run in progress, in the browser's local storage. On the board (only if
-connected and a name is set): player id, name, best score and size reached per mode. There are no accounts,
+connected and a name is set): player id, name, best score and size reached per mode, and the same per seed
+played. There are no accounts,
 no cookies, no analytics and no ads in this build. If you add ads later (the reward hook in `index.html` is
 the place), most ad networks will ask you to publish a privacy page saying so.

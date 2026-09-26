@@ -62,6 +62,7 @@ function makeEnv(storeMap, opts) {
   }
   if (opts.location) { win.location = opts.location; win.history = { replaceState: (s, t, u) => { g.replaced = u; } }; }
   if (!opts.home) win.__skipHome = true;   // tests of play boot straight into a run; menu tests pass home: true
+  if (opts.home && !opts.nameGate) win.__skipName = true;   // and skip the name gate unless a test asks for it
   if (opts.localStorage) { // a Map standing in for localStorage; localStorageThrows mimics Safari private mode (writes throw)
     const m = opts.localStorage, deny = () => { throw new Error('QuotaExceededError'); };
     win.localStorage = {
@@ -74,7 +75,7 @@ function makeEnv(storeMap, opts) {
   const vibes = [], shares = [];
   Object.assign(g, {
     window: win, document: doc, performance: { now: () => now },
-    navigator: { vibrate: (p) => { vibes.push(p); return true; }, userActivation: { hasBeenActive: true }, share: (d) => { shares.push(d); return Promise.resolve(); } },
+    navigator: { vibrate: (p) => { vibes.push(p); return true; }, userActivation: { hasBeenActive: true }, share: (d) => { shares.push(d); return Promise.resolve(); }, clipboard: { writeText: (t) => { g.copied = t; return Promise.resolve(); } } },
     vibes, shares,
     requestAnimationFrame: f => { g._raf = f; },
     setTimeout: (f) => { f(); },
@@ -100,7 +101,8 @@ window.__reset=reset;
 window.__setOpt=setOpt;window.__clockFor=clockFor;window.__setBoard=function(u){BOARD_URL=u;};window.__cleanName=cleanName;
 window.__wm=function(){return WM;};window.__wmSvg=wordmarkSVG;
 window.__pieces=function(s,n){var a=[];for(var i=0;i<n;i++)a.push(pieceAt(s,i));return a;};
-window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(+p[0],+p[1]-1,+p[2]));};
+window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date.UTC(+p[0],+p[1]-1,+p[2])));};
+window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__setSeed=function(s){activeSeed=s;};
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
@@ -122,6 +124,8 @@ window.__dbg=function(){
     rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
     cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
     homeOn:homeOn,pauseOn:pauseOn,playLabel:playBtn.textContent,newRunShown:newRunBtn.classList.contains('show'),todayLabel:todayBtn.textContent,scl:scl,offX:offX,offY:offY,
+    nameOn:nameOn,nameWarn:nameWarnEl.textContent,seedBoxOn:seedBoxOn,seedIn:seedInEl.value,shareOn:shareOn,shareText:shareTextEl.value,viewSeed:viewSeed,drift:drift.length,
+    rescueLeft:rescueLeft(),rescueBtn:reviveBtn.textContent+(reviveBtn.disabled?'(off)':''),rescueCap:rescueCapEl.textContent,rescueNote:rescueNoteEl.textContent,
     seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,
     motes:motes.length,moteY:motes.length?motes[0].y:0,sky:sky.length,pbPulse:pbEl.classList.contains('pulse'),fs:fsEl.textContent,chaincap:chaincapEl.textContent,
     fallingGhosts:ghosts.filter(function(g){return g.fall;}).length,

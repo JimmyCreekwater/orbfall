@@ -25,16 +25,19 @@ file as the design record: it captures decisions already made so they don't get 
   all-caps (the pixel wordmark is a mark, not a label). Ambient life has a small budget and
   nothing else idles: `MOTES` motes drifting up the pocket, fourteen twinkling stars, the twinkle
   of the top three tiers, and the held piece's breathing; everything else moves only in response
-  to play. `prefers-reduced-motion` switches all of that off, plus shake, particles, squash, pop,
-  flash, slow motion, ghosts, the restart sweep, the chain wash, the counting card score and the
-  rolling counter, and keeps the colour cues (danger outlines, reveal text).
+  to play; merges shed drifting motes as well (`popMotes`, capped at `DRIFT_MAX`, drawn with the
+  ambient layer, scattered by their own `driftRnd` so cosmetics never disturb the `Math.random`
+  stream the seeded tests replay). `prefers-reduced-motion` switches all of that off, plus shake,
+  particles, squash, pop, flash, slow motion, ghosts, the restart sweep, the chain wash, the counting
+  card score and the rolling counter, and keeps the colour cues (danger outlines, reveal text).
 - The tuning constants are knobs, not settled values — the owner adjusts them from feel.
 
 ## Map of index.html
 Sections in order, each marked with a `/* ---------- name ---------- */` comment:
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
 sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
-settings sheet → home menu + pause sheet → online board → share + install nudge → simulation →
+settings sheet → home menu + pause sheet (with the name gate, the seed box and the share box) →
+online board (with the name filter and the seed board) → share + install nudge → simulation →
 rendering (static layers, sprites, identity, tier signatures, ambient life, effects) →
 layout & input → pwa → safety net → loop. Seeds live beside `roll()` in the state section; the
 rescue chooser beside the undo code.
@@ -86,18 +89,19 @@ is added, an upward displacement clamp probably belongs beside it.
 Schema v2, one JSON blob under key `orbfall_v2`:
 `{best, bestTier, games, sum, revives, modes, opt, cid, sent, hintedInstall, top:[rec…],
 runs:[rec…≤400], live}` where `cid` is the random 16-hex player id for the online board, `sent`
-is the best score already posted per mode, `hintedInstall` says the iPhone hint was dismissed,
+is the best score already posted per mode, `seedSent` the best posted per seed and mode (keys
+`SEED|mode`, the newest 50 kept), `hintedInstall` says the iPhone hint was dismissed,
 `rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush', sd?:seed}` (no
-`m` means Casual; `sd` is the six-letter seed of a seeded run; `u` counts every move undone by
-any rescue), `revives` is the lifetime revive count (it decides whether the next revive is free),
+`m` means Casual; `sd` is the seed of a seeded run, six letters when generated, up to twelve when
+typed; `u` counts every move undone by any rescue), `revives` is the lifetime revive count (it decides whether the next revive is free),
 `modes = {casual:{best,bestTier,games,sum}, rush:{…}}` holds the per-mode stats (`best`, `games`
 and `sum` at the top level stay as the overall figures; a save without `modes` migrates into
 Casual), `top` keeps 20 entries per mode, `opt` is the settings block
 (`{mute, sfx, music, haptics, aim, mode, online, name}`; unknown or mistyped values fall back to
 defaults),
 and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m, sd, q, x5,
-x10}`, where `sd`/`q` are the seed and how many pieces it has dealt, `x5`/`x10` whether the paid
-rewinds are spent), flushed every 2.5 s while dirty and on
+x10, rs}`, where `sd`/`q` are the seed and how many pieces it has dealt, `x5`/`x10` whether the paid
+rewinds are spent and `rs` how many rescues the run has taken), flushed every 2.5 s while dirty and on
 `visibilitychange`/`pagehide`, restored on load. `persist()` is a no-op until the load has
 finished (`loaded` flag) — this prevents the boot `reset()` from wiping the save. Keep that.
 All reads and writes go through the `store` adapter (`store.get(key)` → Promise of the stored
@@ -147,6 +151,14 @@ marks the run: ↶ with the moves undone, ↻ for the clear. A run finished with
 undoing one drop at game over rarely saves a run because the losing position was set several
 drops earlier; five or ten moves do, and the clear is the other rescue.
 
+**Two rescues per run (shipped 2026-09-25).** `RESCUES_PER_RUN` (2) caps rescues of any kind, counted in
+`rescuesUsed` by `rescueDone()` when a rescue is applied (a cancelled ad counts nothing) and saved with the
+live run (`rs`). The card's button reads "Rescue this run", then "Rescue this run (1 left)", then
+"No rescues left" struck through (`.used`), with a caption under it (`#rescuecap`) saying how many are
+left; the chooser's note says the same and all its rows disable at zero. Every chooser row goes through
+`rescueUndo()` / `rescueClear()` (the `r` key too), so `tryUndo` and `tryRevive` stay the bar's and the
+keyboard's in-play paths.
+
 **Revive** (shipped 2026-09-24). On the game-over card, "Clear the smallest orbs" removes the
 `REVIVE_CLEAR` (8) smallest orbs by tier (ties: the higher one goes first), zeroes every orb's
 line timer, un-records the run and resumes it; `r` on a keyboard does the same. It is capped
@@ -167,34 +179,55 @@ are one-line changes to the sort in `doRevive`.
 
 ## Scoreboard
 Bottom sheet, time filters All (default) / Day / Week / Month (rolling 24 h / 7 d / 30 d) /
-Today (runs on today's seed only), a Casual / Rush pair, and a Here / Online source pair, top
+Today (runs on today's seed only) / Seed (the run's seed, shown only when there is one), a Casual / Rush
+pair, and a Here / Online source pair, top
 10 rows, run count and average, latest run highlighted (or appended with its rank if it's
 outside the top 10). Physics pause while it's open.
 
 ## Seeds, the daily and challenges (shipped 2026-09-25)
-A seed is six letters from `SEED_AB` (no I, L, O, 0, 1). Piece n of a seeded run is
+A generated seed is six letters from `SEED_AB` (no I, L, O, U, 0, 1); a typed one is any one to twelve
+letters or digits (below). Piece n of a seeded run is
 `pieceAt(seed, n)`, a pure function (fnv1a of `seed:n` into mulberry32, then the spawn
 weights), so undo, revive and a restored run keep dealing the same pieces and two players on
 one seed face the same sequence. `runSeed` is frozen at `reset()` from `activeSeed` (null for
 free play); `seqN` counts pieces dealt and rides in snapshots and the live save. Today's seed is
-`dailySeed()`, the local date hashed. A challenge link is `#s=SEED&m=MODE`: `parseLink()` at
+`dailySeed()`, the **UTC** date hashed, so the whole world rolls over at the same moment and the client
+and the worker agree without a round trip (a `/daily` override on the worker is the natural step if a
+curated daily is ever wanted). A challenge link is `#s=SEED&m=MODE`: `parseLink()` at
 load starts that run at once (the link's mode applies to the run only, the saved preference is
 untouched), then `clearLink()` drops the hash so a reload resumes normally. `challenge()` on the
 card and the menu shares the run's seed as a link with the score to beat, or, after a free run,
 makes a fresh seed for the next run. The HUD shows "seed X" or "today X" under the best score.
-Seeded runs are ordinary records with `sd`; the Today filter shows the current day's seed only.
-Not done yet: the online board does not know about seeds, so a friend's score on your seed is
-compared by eye; a per-seed table in the worker is the natural second step.
+Seeded runs are ordinary records with `sd`; the Today filter shows the current day's seed only, the Seed
+filter the seed of the run being played (`viewSeed`).
+
+**Typed seeds and the seed box (shipped 2026-09-25).** The daily, Random and Challenge-after-a-free-run stay
+six letters; a typed seed is any one to twelve letters or digits (`cleanSeed()` uppercases and strips the
+rest, `seedOK()` checks `[A-Z0-9]{1,12}`, the link regex matches the same). Play today keeps the daily as
+the default; Other seed beside it opens the seed box (`#seedbox`), preset to today's code, with Random and
+Play this seed. Two players who type the same word get the same pieces, and the seed board compares them.
 
 ## Home menu and pause sheet (shipped 2026-09-25)
 Every cold launch opens the home menu (`openHome()`), never an app switch: the mark, a
 tagline, Play (Continue when a run is live, with a New run beside it), the Casual / Rush pair,
-Play today with the daily code, and Scores / Settings / Challenge. A challenge link skips the
-menu. The mark in the HUD is the pause button (`menuHit`): Continue, Scores, Settings, Restart,
+Play today with the daily code beside Other seed, and Scores / Settings / Challenge. A challenge link skips
+the menu. A player with no valid name meets the name gate first (see Names below); on a link run the gate
+sits over the paused run. The mark in the HUD is the pause button (`menuHit`): Continue, Scores, Settings, Restart,
 Home; Escape pauses and unpauses on a keyboard. Pausing has one rule: `updatePause()` sets
 `paused` from every overlay flag (home, pause, rescue, sheets, the ad box, the fault card), so a
 sheet closed over the menu never unpauses the game behind it. The harness boots with
 `__skipHome` unless a test asks for the menu.
+
+## Names and the name filter (shipped 2026-09-25)
+The first launch (and any launch with no valid name) opens the name gate (`#namebox`) before the menu: a
+name is required, up to twelve characters through `cleanName()`, and must pass `nameOK()`. The filter is
+deliberately narrow: whole words are checked after undoing leetspeak (`normName`: 0→o, 1→i, 3→e, 4→a, 5→s,
+7→t, 8→b, @→a, $→s, !→i) and doubled letters, plus the letters joined without spaces, against `BAD_WORD`;
+the few unambiguous slurs in `BAD_ANY` are refused as substrings. So Glass, Cassandra, Scunthorpe and
+assassin pass; Ass, sh1t, "f u c k" and SLUT99 do not. The settings name field applies the same rule with a
+toast. `server/worker.js` carries identical lists and answers 400 to a failing name; extend both together.
+The harness boots past the gate (`__skipName`, set alongside `__skipHome`, and for `home: true` tests
+unless they pass `nameGate: true`).
 
 ## Backlog, in order
 1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a
@@ -206,7 +239,7 @@ sheet closed over the menu never unpauses the game behind it. The harness boots 
    per run, first free then ad-gated (grant and cancel), `v` on the record and ↻ on the board,
    survives reload.
 4. ~~**Daily seed.**~~ Shipped 2026-09-25 as seeds, the daily and challenge links — see that
-   section. Open: a per-seed table on the online board.
+   section. The per-seed online board followed the same day.
 5. **Difficulty ramp.** Every ~1,000 points shift `SPAWN_W` toward larger pieces (cap at a
    sane ceiling). Re-run `test/physics.js` and report random-play tier/score; target: random
    tops out at tier 7, Sun reachable only with deliberate play.
@@ -230,8 +263,9 @@ tight tracking, tabular figures. Orb palette lives in `TIERS`.
 
 **Identity.** The wordmark is a brass orb for the O followed by "rbfall" in a 5×7 pixel font
 (`WM` in index.html; `tools/icons.js` carries the same rows for `icons/share.png`; keep them in
-step). `drawWordmark` draws it on canvas, `wordmarkSVG` gives the game-over card the same mark
-as inline SVG. A fresh start (no run to resume) shows the title moment: the mark over the
+step). `drawWordmark` draws it on canvas, `wordmarkSVG(px, key)` gives the cards the same mark as inline SVG;
+`key` makes each copy's gradient id unique, because `url(#id)` resolves to the first id in the document
+and one inside a hidden card paints nothing (the pause sheet's O was invisible until 2026-09-25). A fresh start (no run to resume) shows the title moment: the mark over the
 pocket with "Tap to play"; the first tap both dismisses it and plays, the Rush clock waits for
 it, and it fades in a third of a second (none under reduced motion).
 
@@ -240,7 +274,9 @@ sprite, felt grain and lamp on the table layer, the sky in the pocket. Transitio
 sweeps the old board away as falling ghosts (`sweep()`), the card's score counts up
 (`countUp()`), a new best pulses its label and fires a gold burst that glows through the card's
 blur (`celebrate()`). Ambient life within the budget above (`initAmbient`, `drawAmbient`, the
-`tw` twinkle factor in `decorate`, the breathing held piece in `drawAim`). Chrome: brass-lit bar
+`tw` twinkle factor in `decorate`, the breathing held piece in `drawAim`); since 2026-09-25 every merge
+also sheds motes in the tier's highlight colour (`popMotes` → `drift`, drawn in `drawAmbient` behind the
+orbs, fading over three to seven seconds, `3 + 2·tier` of them plus eight for a Sun pair, `DRIFT_MAX` 80). Chrome: brass-lit bar
 buttons, a felt-grain overlay and a brass top edge on the card and sheets (pure CSS, an inline
 SVG noise), the chain captioned with the size reached, a brass slot behind the next piece, a
 landing shadow under the aim guide, a heavier danger line.
@@ -340,9 +376,17 @@ loading, unreachable, empty). Names pass `cleanName()` (safe characters, twelve 
 ends and are escaped when rendered. The game never waits on the network. The harness stubs
 `fetch` (`g.fetchLog`, `g.fetchReply`).
 
+**The seed board (shipped 2026-09-25).** A second table, `seeds` (one row per seed, mode and player, the
+best score kept), behind `GET /seed?seed=&mode=` and `POST /seed`, with the same rate limit, checks and
+name filter. `syncSeed()` posts a seeded run's best after `recordRun()` and when the board opens,
+remembering what was sent in `save.seedSent`; `loadOnline(mode, seed)` reads it, cached a minute per seed;
+the board's Today and Seed chips under Online show it. Today's seed is the UTC date on both sides, so no
+call is needed to agree on it. A deployed board needs `schema.sql` run again and a redeploy (PUBLISHING.md).
+
 ## Share, previews, landscape, install nudge (shipped 2026-09-24)
-`share()` uses the Web Share API with the score, the mode and the page address, falling back to
-the clipboard. Open Graph and Twitter tags plus `icons/share.png` (drawn by tools/icons.js) give
+`share()` uses the Web Share API with the score, the mode, the seed and the page address; without a share
+sheet (desktop browsers, some webviews) `shareOut()` opens the share box (`#sharebox`) with the text and a
+Copy button (async clipboard, else select-and-copy), so Share and Challenge always do something visible. Open Graph and Twitter tags plus `icons/share.png` (drawn by tools/icons.js) give
 link previews; the domain is a placeholder until the owner fills it in, and the release script
 refuses to ship it. A touch device held sideways (`vw > vh`, short height) pauses behind a
 "turn your phone" card via the `rotated` flag, which gates drops, physics and the Rush clock.
@@ -371,4 +415,7 @@ the wordmark rows in index.html and tools/icons.js stay identical · the ambient
 list in the ground rules · pausing goes through `updatePause()` · the ring keeps ten
 snapshots and the paid rescues are once per run · the clean badge means `u` and `v` are both
 zero · a seeded run deals from `pieceAt` only · the menu opens on cold launches, not app
-switches.
+switches · the daily seed is the UTC date on the client and the worker · rescues cap at
+`RESCUES_PER_RUN` per run and every chooser row counts one · `BAD_ANY`/`BAD_WORD` stay identical in
+index.html and server/worker.js · merge motes roll `driftRnd`, never `Math.random` · every inline
+wordmark has its own gradient id.
