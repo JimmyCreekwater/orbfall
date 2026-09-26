@@ -9,8 +9,15 @@ lets you carry on.
 ## Run
 Any static host works. Locally: `npx serve .` then open the URL on your phone, or just open
 `index.html` in a desktop browser (arrow keys aim, space drops, z undoes, r revives at game
-over, s opens scores, m mutes). Scores and the in-progress run are saved in the browser's
-localStorage.
+over, s opens scores, m mutes, Escape pauses). Scores and the in-progress run are saved in the
+browser's localStorage.
+
+The game opens on a menu: Play, the mode, Play today (everyone gets the same pieces on the
+day's seed), Scores, Settings and Challenge. The brass mark at the top of the play screen is
+the pause button. Challenge shares a link with a six-letter seed; whoever opens it plays the
+same sequence of pieces. At game over, Rescue this run offers Undo 1 (free once), Undo 5 (an
+ad), Undo 10 (two ads) and Clear the smallest orbs, each once per run; runs finished without
+any rescue wear a ✦ on the board.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
 Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cached by `sw.js`,
@@ -37,7 +44,10 @@ orbs once per run, free first then ad-gated, and marks the run; the feel pass (s
 squash and dust, merge pop and flash, tier reveals, score roll, chain wash, slow motion, revive
 ghosts, the particle cap) works and switches off under reduced motion; settings persist and
 the master mute works; the music sequencer and its layers; Rush's shot clock, its pauses, its
-records and boards; the crash card catches a throwing frame; sharing, the landscape card and
+records and boards; seeds deal the same pieces, survive undo and reload, start from links and
+land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
+chooser's ring, ad counts, caps and the clean badge; the crash card catches a throwing frame;
+sharing, the landscape card and
 the install nudge; the online board posts a best score once and renders the shared top; the
 manifest, icons and service worker hold together (shell precached, stale caches dropped,
 cache-first offline). The suite is seeded, so it is the same run every time.

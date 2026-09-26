@@ -10,7 +10,7 @@ async function playToGameOver(g) {
   return g.dbg();
 }
 (async () => {
-  const store = new Map();
+  const store = new Map(); let q;
   let g = boot(store); await settle(); g.step(16.67);
 
   const over = await playToGameOver(g);
@@ -27,7 +27,7 @@ async function playToGameOver(g) {
   g.fire('close:click'); g.step(16.67);
   check(g.dbg().paused === false, 'board close unpauses');
 
-  g.fire('undo2:click'); g.step(16.67);
+  g.fire('revive:click'); g.fire('r1:click'); g.step(16.67);
   let d = g.dbg();
   check(d.state === 'play' && d.games === 0 && d.runs === 0 && d.undosFree === 0 && d.undosUsed === 1, 'free undo from game over restores play and unrecords the run');
 
@@ -91,14 +91,15 @@ async function playToGameOver(g) {
   g = boot(rs); await settle(); g.step(16.67);
   let o = await playToGameOver(g);
   const before = o.n, smallest = o.tiers.slice().sort((a, b) => a - b).slice(0, 8);
-  check(o.state === 'over' && g.els.revive.disabled === false && !g.els.revive.classList.contains('ad'), 'at game over the revive is offered, free the first time');
-  g.fire('revive:click'); g.step(16.67);
+  g.fire('revive:click'); q = g.dbg();
+  check(o.state === 'over' && q.rescueOn && q.rescue.split('|')[3] === 'Free', 'at game over the rescue chooser offers the clear, free the first time (' + q.rescue + ')');
+  g.fire('rclear:click'); g.step(16.67);
   d = g.dbg();
   const kept = d.tiers.slice().sort((a, b) => a - b);
   check(d.state === 'play' && d.games === 0 && d.n === before - Math.min(8, before), 'revive resumes the run, unrecords it and removes 8 orbs (' + before + ' -> ' + d.n + ')');
   check(kept.length === 0 || kept[0] >= smallest[smallest.length - 1], 'the removed orbs were the smallest ones');
   check(d.revivesUsed === 1 && d.revives === 1 && d.snap === false, 'revive counted for the run and for the lifetime total, undo snapshot cleared');
-  check(g.els.revive.disabled === true, 'a second revive in the same run is not offered');
+  check(g.dbg().reviveLeft === false && !g.dbg().rescueOn, 'a second revive in the same run is not offered and the chooser closed');
   g.fire('revive:click'); g.step(16.67);
   check(g.dbg().state === 'play' && g.dbg().revivesUsed === 1, 'revive during play is a no-op');
   o = await playToGameOver(g); await settle();
@@ -107,17 +108,17 @@ async function playToGameOver(g) {
   g.fire('scores:click'); g.step(16.67);
   check(g.els.rows._html.includes('\u21bb1'), 'the board marks the revived run');
   g.fire('close:click'); g.step(16.67);
-  check(g.els.revive.disabled === true, 'the revive stays used up at the second game over of the run');
+  g.fire('revive:click'); check(g.dbg().rescue.split('|')[3] === 'Used(off)', 'the clear stays used up at the second game over of the run'); g.fire('rescueback:click');
 
   g.fire('again:click'); g.step(16.67);
   await playToGameOver(g);
-  check(g.els.revive.disabled === false && g.els.revive.classList.contains('ad'), 'next run: the revive is offered again, now ad-gated');
+  g.fire('revive:click'); check(g.dbg().rescue.split('|')[3] === 'Ad', 'next run: the clear is offered again, now ad-gated'); g.fire('rescueback:click');
   g.fire('win:keydown', { key: 'r' }); g.step(16.67);
   check(g.dbg().paused === true && g.els.adbox.classList.contains('show') && g.dbg().state === 'over', 'the r key asks for the reward first');
   g.fire('adcancel:click'); g.step(16.67);
   check(g.dbg().state === 'over' && g.dbg().revivesUsed === 0 && g.dbg().revives === 1, 'cancelling the placeholder ad grants no revive');
-  g.fire('revive:click'); g.step(16.67);
-  for (let k = 0; k < 200; k++) g.step(16.67);
+  g.fire('revive:click'); g.fire('rclear:click'); g.step(16.67);
+  for (let k = 0; k < 300; k++) g.step(16.67);
   d = g.dbg();
   check(d.state === 'play' && d.revivesUsed === 1 && d.revives === 2 && !g.els.adbox.classList.contains('show'), 'placeholder ad completes and grants the revive');
   for (let k = 0; k < 30; k++) g.step(16.67);
@@ -142,7 +143,7 @@ async function playToGameOver(g) {
     g.step(16.67);
     const q = g.dbg();
     if (q.state === 'over') {
-      if (ghostsOk === null) { g.fire('revive:click'); ghostsOk = g.dbg().ghosts === 8; for (let k = 0; k < 40; k++) g.step(16.67); ghostsGone = g.dbg().ghosts === 0; }
+      if (ghostsOk === null) { g.fire('revive:click'); g.fire('rclear:click'); ghostsOk = g.dbg().ghosts === 8; for (let k = 0; k < 40; k++) g.step(16.67); ghostsGone = g.dbg().ghosts === 0; }
       else { g.step(400); g.fire('again:click'); }
       lastN = 0; continue;
     }
@@ -175,7 +176,7 @@ async function playToGameOver(g) {
   // settings sheet and persisted options
   const os = new Map();
   g = boot(os); await settle(); g.step(16.67);
-  let q = g.dbg();
+  q = g.dbg();
   check(q.opt.mute === false && q.opt.sfx && q.opt.music && q.opt.haptics && q.opt.aim && q.opt.mode === 'casual', 'options default to everything on, casual mode');
   check(q.switches === 'music=true sfx=true haptics=true aim=true online=true', 'the settings sheet shows five switches, all on');
   g.fire('scores:click'); g.step(16.67); g.fire('settings:click'); g.step(16.67); q = g.dbg();
@@ -219,12 +220,12 @@ async function playToGameOver(g) {
   const rsv = new Map();
   g = boot(rsv); await settle(); g.step(16.67);
   check(g.window.__clockFor(0) === 3 && g.window.__clockFor(1500) === 2.25 && g.window.__clockFor(9000) === 1.5, 'the shot clock shrinks from 3 s to 1.5 s by 3,000 points');
-  check(g.dbg().modeUI === 'casual* rush casual* rush', 'the mode pair on the card and in settings shows Casual');
+  check(g.dbg().modeUI === 'casual* rush casual* rush casual* rush', 'the mode pair on the card, in settings and on the menu shows Casual');
   for (let k = 0; k < 15; k++) g.step(16.67); g.tap(180); for (let k = 0; k < 400; k++) g.step(16.67);
   check(g.dbg().drops === 1 && g.dbg().runMode === 'casual', 'Casual never drops for you');
   g.reset(); g.step(16.67);   // a fresh run without the title moment, before its first drop
   g.window.__setOpt('mode', 'rush'); g.step(16.67);
-  check(g.dbg().runMode === 'rush' && g.dbg().opt.mode === 'rush' && g.dbg().modeUI === 'casual rush* casual rush*', 'switching to Rush before the first drop applies to this run');
+  check(g.dbg().runMode === 'rush' && g.dbg().opt.mode === 'rush' && g.dbg().modeUI === 'casual rush* casual rush* casual rush*', 'switching to Rush before the first drop applies to this run');
   let autoAt = -1; for (let k = 0; k < 300 && autoAt < 0; k++) { g.step(16.67); if (g.dbg().drops === 1) autoAt = k; }
   check(autoAt > 120 && autoAt < 240, 'Rush drops the piece for you when the clock runs out (frame ' + autoAt + ')');
   g.fire('scores:click'); g.step(16.67); const dropsAtOpen = g.dbg().drops; for (let k = 0; k < 300; k++) g.step(16.67);
@@ -286,9 +287,9 @@ async function playToGameOver(g) {
   g = boot(ob); await settle(); g.step(16.67);
   check(/^[a-f0-9]{16}$/.test(g.dbg().cid), 'a random player id is made on first load');
   check(g.window.__cleanName("<b>Jim!!</b> the great one") === 'bJimb the gr', 'names are stripped to safe characters and twelve letters');
-  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
-  check(g.dbg().filter === 'online' && g.els.rows._html.includes('not connected'), 'without a board address the Online tab says so');
-  g.window.__setBoard('https://board.test/'); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
+  g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } });
+  check(g.dbg().boardOnline === true && g.els.rows._html.includes('not connected'), 'without a board address the Online tab says so');
+  g.window.__setBoard('https://board.test/'); g.fire('modechips:click', { target: { getAttribute: () => 'online' } });
   check(g.els.rows._html.includes('Add a name'), 'with a board but no name it asks for one');
   g.fire('close:click'); g.step(16.67);
   g.window.__setOpt('name', 'Jim'); await settle();
@@ -300,7 +301,7 @@ async function playToGameOver(g) {
   check(sv.sent.casual === o.score && sv.cid === body.cid && g.dbg().floats.some(t => t.indexOf('Online rank') === 0), 'what was sent is remembered and the rank is announced');
   const cid = body.cid;
   g.fetchReply = (url) => url.indexOf('/top?mode=casual') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada', score: 9000, tier: 8, ts: Date.now() }, { cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : url.indexOf('/top') >= 0 ? { status: 500, body: { error: 'server' } } : { status: 200, body: { ok: true, rank: 2 } };
-  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
+  g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
   const rows = g.els.rows._html;
   check(rows.includes('Ada') && rows.includes('class="you"') && rows.indexOf('Ada') < rows.indexOf('Jim'), 'the Online tab lists the shared top with your own row highlighted');
   g.fire('modechips:click', { target: { getAttribute: () => 'rush' } }); await settle(); await settle();
@@ -310,28 +311,55 @@ async function playToGameOver(g) {
   g.fire('again:click'); g.step(16.67); await playToGameOver(g); await settle(); await settle();
   const postsAfter = g.fetchLog.filter(f => f.url.endsWith('/score')).length;
   check(g.dbg().score <= o.score ? postsAfter === postsBefore : postsAfter === postsBefore + 1, 'a lower run posts nothing, a new best posts once');
-  g.window.__setOpt('online', false); g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
+  g.window.__setOpt('online', false); g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } });
   check(g.els.rows._html.includes('Turn on the online board'), 'switching the board off in settings stops it');
 
   // identity: the wordmark glyphs, the card mark, and the title moment on a fresh start
   const wm = g.window.__wm();
   check(['r', 'b', 'f', 'a', 'l'].every(k => wm[k].length === 7 && wm[k].every(row => row.length === 5)), 'the wordmark has five glyphs of 5 by 7 pixels');
   const svg = g.window.__wmSvg(3);
-  check(svg.startsWith('<svg') && (svg.match(/<rect /g) || []).length > 60 && svg.includes('<circle') && g.els.wm._html === svg, 'the card carries the mark as inline SVG: a brass orb and the pixel letters');
-  const tv = new Map();
-  g = boot(tv); await settle(); g.step(16.67);
-  check(g.dbg().title === true && g.dbg().titleA === 1, 'a fresh start shows the title moment');
-  for (let k = 0; k < 20; k++) g.step(16.67);
-  g.tap(180); g.step(16.67); q = g.dbg();
-  check(q.title === false && q.drops === 1, 'the first tap dismisses the title and plays');
-  for (let k = 0; k < 30; k++) g.step(16.67);
-  check(g.dbg().titleA === 0, 'the title fades out within half a second');
-  for (let k = 0; k < 30; k++) g.step(16.67);
+  check(svg.startsWith('<svg') && (svg.match(/<rect /g) || []).length > 60 && svg.includes('<circle') && g.els.wm._html === svg && g.els.wmhome._html.startsWith('<svg') && g.els.wmpause._html === svg, 'the card, the home menu and the pause sheet carry the mark as inline SVG');
+
+  // home menu and pause sheet: cold launches, Play / Continue / New run / Play today, the mark as the pause button
+  const hm = new Map();
+  g = boot(hm, { home: true }); await settle(); g.step(16.67); q = g.dbg();
+  check(q.homeOn && q.paused && q.playLabel === 'Play' && !q.newRunShown && q.todayLabel.indexOf('Play today ') === 0, 'a cold launch opens the home menu on Play');
+  for (let k = 0; k < 15; k++) g.step(16.67); g.tap(180); g.step(16.67);
+  check(g.dbg().drops === 0, 'taps do nothing behind the menu');
+  g.fire('play:click'); g.step(16.67); q = g.dbg();
+  check(!q.homeOn && !q.paused && q.state === 'play' && q.seed === null, 'Play starts a free run');
+  for (let k = 0; k < 15; k++) g.step(16.67); g.tap(180); for (let k = 0; k < 20; k++) g.step(16.67);
+  const mark = () => g.fire('c:pointerdown', { clientX: g.dbg().offX + 180 * g.dbg().scl, clientY: g.dbg().offY + 40 * g.dbg().scl, pointerId: 1 });
+  mark(); g.step(16.67); q = g.dbg();
+  check(q.pauseOn && q.paused && q.drops === 1, 'tapping the mark pauses behind a sheet instead of dropping');
+  g.fire('resume:click'); g.step(16.67);
+  check(!g.dbg().pauseOn && !g.dbg().paused, 'Continue resumes');
+  mark(); g.fire('pausescores:click'); g.step(16.67);
+  check(g.dbg().boardOpen && g.dbg().paused, 'Scores opens over the pause sheet');
+  g.fire('close:click'); g.step(16.67);
+  check(g.dbg().pauseOn && g.dbg().paused && !g.dbg().boardOpen, 'Done returns to the pause sheet, still paused');
+  g.fire('pausehome:click'); g.step(16.67); q = g.dbg();
+  check(q.homeOn && !q.pauseOn && q.paused && q.playLabel === 'Continue' && q.newRunShown, 'Home from the pause sheet shows Continue and New run for the live run');
+  g.fire('homesettings:click'); g.step(16.67); check(g.dbg().optsOpen && g.dbg().paused, 'Settings opens over the menu');
+  g.fire('optsclose:click'); g.step(16.67); check(g.dbg().homeOn && g.dbg().paused, 'and closing it leaves the menu up and the game paused');
+  g.fire('play:click'); g.step(16.67);
+  check(!g.dbg().homeOn && !g.dbg().paused && g.dbg().drops === 1, 'Continue keeps the run');
   g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
-  g = boot(tv); await settle(); g.step(16.67);
-  check(g.dbg().title === false && g.dbg().n >= 1, 'a resumed run skips the title');
-  g = boot(new Map(), { reduced: true }); await settle(); g.step(16.67); g.tap(180); g.step(16.67);
-  check(g.dbg().titleA === 0, 'under reduced motion the title leaves without a fade');
+  g = boot(hm, { home: true }); await settle(); g.step(16.67); q = g.dbg();
+  check(q.homeOn && q.playLabel === 'Continue' && q.n >= 1, 'a relaunch with a saved run offers Continue');
+  g.fire('newrun:click'); g.step(16.67);
+  check(!g.dbg().homeOn && g.dbg().drops === 0 && g.dbg().n === 0, 'New run starts over');
+  const todayNow = g.window.__daily(new Date().getFullYear() + '-' + (new Date().getMonth() + 1) + '-' + new Date().getDate());
+  mark(); g.fire('pausehome:click'); g.fire('today:click'); g.step(16.67); q = g.dbg();
+  check(!q.homeOn && q.seed === todayNow, 'Play today starts a run on the daily seed');
+  mark(); g.fire('restart:click'); g.step(16.67); q = g.dbg();
+  check(!q.pauseOn && !q.paused && q.drops === 0 && q.seed === todayNow, 'Restart starts the same seed over');
+  g.fire('win:keydown', { key: 'Escape' }); check(g.dbg().pauseOn, 'Escape pauses'); g.fire('win:keydown', { key: 'Escape' }); check(!g.dbg().pauseOn, 'and unpauses');
+  g = boot(new Map(), { home: true, location: { hash: '#s=abcdef&m=rush', protocol: 'https:', href: 'https://orb.test/#s=abcdef', pathname: '/', search: '' } }); await settle(); g.step(16.67);
+  check(!g.dbg().homeOn && g.dbg().seed === 'ABCDEF', 'a challenge link skips the menu and goes straight into its run');
+  await playToGameOver(g); g.fire('home2:click'); q = g.dbg();
+  check(q.homeOn && q.playLabel === 'Play' && !q.newRunShown, 'Home from the card offers a new run');
+  g.fire('play:click'); g.step(16.67); check(g.dbg().state === 'play' && g.dbg().seed === null, 'and Play there starts fresh');
 
   // transitions and ambient life: the swept board, the counting score, the new-best burst, motes and twinkle
   g = boot(new Map()); await settle(); g.step(16.67);
@@ -354,6 +382,75 @@ async function playToGameOver(g) {
   check(g.dbg().moteY === my0 && q.fs !== '0' && q.parts === 0, 'under reduced motion the motes hold still, the score lands at once and nothing bursts');
   g.fire('again:click');
   check(g.dbg().fallingGhosts === 0, 'and the board clears without the sweep');
+
+  // seeds: one code, one sequence; undo and restore keep it; links start it; the daily is stable; Today lists it
+  const sd = new Map();
+  g = boot(sd); await settle(); g.step(16.67);
+  const P = (s, n) => g.window.__pieces(s, n).join('');
+  check(P('K7Q2ZD', 12) === P('K7Q2ZD', 12) && P('K7Q2ZD', 12) !== P('K7Q2ZE', 12) && /^[0-4]+$/.test(P('K7Q2ZD', 12)), 'a seed fixes the piece sequence, another seed changes it, and every piece is a spawnable tier');
+  const daily = g.window.__daily('2026-09-25');
+  check(/^[A-HJKMNP-TV-Z2-9]{6}$/.test(daily) && daily === g.window.__daily('2026-09-25') && daily !== g.window.__daily('2026-09-26'), 'the daily seed is six safe letters, stable for a date and different the next day (' + daily + ')');
+  g.window.__setSeed('K7Q2ZD'); g.reset(); for (let k = 0; k < 15; k++) g.step(16.67);
+  const dealt = []; for (let d = 0; d < 6; d++) { dealt.push(g.dbg().curT); g.tap(60 + d * 40); for (let k = 0; k < 30; k++) g.step(16.67); }
+  check(g.dbg().seed === 'K7Q2ZD' && dealt.join('') === P('K7Q2ZD', 6), 'a seeded run deals the pieces in order (' + dealt.join('') + ')');
+  g.fire('undo:click'); g.step(16.67); q = g.dbg();
+  check(q.curT === g.window.__pieces('K7Q2ZD', 7)[5] && q.nxtT === g.window.__pieces('K7Q2ZD', 7)[6] && q.seqN === 7, 'undo hands back the same piece and the same next piece');
+  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
+  g = boot(sd); await settle(); g.step(16.67); q = g.dbg();
+  check(q.seed === 'K7Q2ZD' && q.seqN === 7 && q.n >= 1, 'a restored run keeps its seed and its place in the sequence');
+  g = boot(new Map(), { location: { hash: '#s=abcdef&m=rush', protocol: 'https:', href: 'https://orb.test/play/#s=abcdef&m=rush', pathname: '/play/', search: '' } }); await settle(); g.step(16.67); q = g.dbg();
+  check(q.seed === 'ABCDEF' && q.runMode === 'rush' && q.opt.mode === 'casual' && g.replaced === '/play/', 'a challenge link starts a Rush run on its seed without changing the saved mode, and the link is cleared');
+  g.fire('challenge:click'); await settle();
+  check(g.shares.length === 1 && g.shares[0].url === 'https://orb.test/play/#s=ABCDEF&m=rush' && g.shares[0].text.includes('ABCDEF'), 'Challenge shares the seed as a link');
+  const dl = new Map();
+  g = boot(dl); await settle(); g.step(16.67);
+  g.window.__setSeed(g.window.__daily(new Date().getFullYear() + '-' + (new Date().getMonth() + 1) + '-' + new Date().getDate())); g.reset(); g.step(16.67);
+  o = await playToGameOver(g); await settle();
+  sv = JSON.parse(dl.get('orbfall_v2'));
+  check(sv.runs[0].sd === g.dbg().seed && sv.runs[0].sd.length === 6, 'a run on today’s seed is recorded with the seed');
+  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'today' } });
+  check(g.dbg().filter === 'today' && g.els.rows._html.includes(o.score.toLocaleString('en-US')), 'the Today board shows it');
+  g.fire('close:click'); g.step(16.67); g.window.__setSeed(null); g.fire('again:click'); g.step(16.67);
+  await playToGameOver(g); await settle(); const free = g.dbg().score;
+  g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'today' } });
+  check(!g.els.rows._html.includes('>' + free.toLocaleString('en-US') + '<') || free === o.score, 'a free run does not land on the Today board');
+  g.fire('close:click'); g.step(16.67); g.fire('challenge:click'); await settle(); q = g.dbg();
+  check(q.activeSeed && q.activeSeed.length === 6 && g.shares[g.shares.length - 1].text.includes(q.activeSeed) && q.floats.some(t => t.indexOf('Next run plays seed') === 0), 'Challenge after a free run makes a seed for the next run and shares it');
+
+  // rescue chooser: a ten-move snapshot ring, undo 5 for an ad, undo 10 for two, each once per run, and the clean badge
+  const rq = new Map();
+  g = boot(rq); await settle(); g.step(16.67);
+  for (let k = 0; k < 15; k++) g.step(16.67);
+  for (let d = 0; d < 12; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  check(g.dbg().snaps === 10 && g.dbg().drops === 12, 'the ring keeps the last ten pre-drop snapshots');
+  o = await playToGameOver(g);
+  g.fire('revive:click'); q = g.dbg();
+  check(q.rescueOn && q.paused && q.rescue === 'Free|Ad|2 ads|Free', 'the chooser lists undo 1 free, undo 5 for an ad, undo 10 for two, and the clear free (' + q.rescue + ')');
+  const dropsAtOver = q.drops;
+  g.fire('r5:click'); g.step(16.67);
+  check(!g.dbg().rescueOn && g.els.adbox.classList.contains('show') && g.dbg().adk === '', 'Undo 5 asks for one ad');
+  for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
+  check(q.state === 'play' && q.drops === dropsAtOver - 5 && q.undosUsed === 5 && q.used5, 'after the ad five moves are undone');
+  for (let d = 0; d < 6; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  await playToGameOver(g); g.fire('revive:click'); q = g.dbg();
+  check(q.rescue.split('|')[1] === 'Used(off)' && q.rescue.split('|')[2] === '2 ads', 'undo 5 is spent for this run, undo 10 still offered');
+  const dropsAtOver2 = q.drops;
+  g.fire('r10:click'); g.step(16.67);
+  check(g.els.adbox.classList.contains('show') && g.dbg().adk === 'Ad 1 of 2', 'Undo 10 asks for two ads, counted on the placeholder');
+  for (let k = 0; k < 330; k++) g.step(16.67);
+  check(g.els.adbox.classList.contains('show') && g.dbg().adk === 'Ad 2 of 2' && g.dbg().state === 'over', 'the second ad follows the first before anything is granted');
+  g.fire('adcancel:click'); g.step(16.67); q = g.dbg();
+  check(q.state === 'over' && !q.used10 && q.drops === dropsAtOver2, 'cancelling the second ad grants nothing');
+  g.fire('revive:click'); g.fire('r10:click'); for (let k = 0; k < 700; k++) g.step(16.67); q = g.dbg();
+  check(q.state === 'play' && q.drops === dropsAtOver2 - 10 && q.used10 && q.undosUsed === 15, 'two full ads undo ten moves');
+  await playToGameOver(g); await settle();
+  g.fire('scores:click'); g.step(16.67);
+  check(!g.els.rows._html.includes('class="clean"') && g.els.rows._html.includes('↶15'), 'a rescued run carries no clean badge, only its undo count');
+  g.fire('close:click'); g.step(16.67); g.fire('again:click'); g.step(16.67);
+  await playToGameOver(g); await settle(); q = g.dbg();
+  check(q.cleanShown, 'a run finished without rescues shows Clean run on the card');
+  g.fire('scores:click'); g.step(16.67);
+  check((g.els.rows._html.match(/class="clean"/g) || []).length === 1, 'and wears the badge on the board');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

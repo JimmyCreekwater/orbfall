@@ -34,9 +34,10 @@ file as the design record: it captures decisions already made so they don't get 
 Sections in order, each marked with a `/* ---------- name ---------- */` comment:
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
 sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
-settings sheet → online board → share + install nudge → simulation → rendering (static layers,
-sprites, identity, tier signatures, ambient life, effects) → layout & input → pwa → safety net →
-loop.
+settings sheet → home menu + pause sheet → online board → share + install nudge → simulation →
+rendering (static layers, sprites, identity, tier signatures, ambient life, effects) →
+layout & input → pwa → safety net → loop. Seeds live beside `roll()` in the state section; the
+rescue chooser beside the undo code.
 
 ## Rules of the game (current)
 - 11 tiers (Mote … Sun). Two touching orbs of the same tier merge into the next tier at their
@@ -86,15 +87,17 @@ Schema v2, one JSON blob under key `orbfall_v2`:
 `{best, bestTier, games, sum, revives, modes, opt, cid, sent, hintedInstall, top:[rec…],
 runs:[rec…≤400], live}` where `cid` is the random 16-hex player id for the online board, `sent`
 is the best score already posted per mode, `hintedInstall` says the iPhone hint was dismissed,
-`rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush'}` (no `m` means
-Casual), `revives` is the lifetime revive count (it decides whether the next revive is free),
+`rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush', sd?:seed}` (no
+`m` means Casual; `sd` is the six-letter seed of a seeded run; `u` counts every move undone by
+any rescue), `revives` is the lifetime revive count (it decides whether the next revive is free),
 `modes = {casual:{best,bestTier,games,sum}, rush:{…}}` holds the per-mode stats (`best`, `games`
 and `sum` at the top level stay as the overall figures; a save without `modes` migrates into
 Casual), `top` keeps 20 entries per mode, `opt` is the settings block
 (`{mute, sfx, music, haptics, aim, mode, online, name}`; unknown or mistyped values fall back to
 defaults),
-and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m}`), flushed
-every 2.5 s while dirty and on
+and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m, sd, q, x5,
+x10}`, where `sd`/`q` are the seed and how many pieces it has dealt, `x5`/`x10` whether the paid
+rewinds are spent), flushed every 2.5 s while dirty and on
 `visibilitychange`/`pagehide`, restored on load. `persist()` is a no-op until the load has
 finished (`loaded` flag) — this prevents the boot `reset()` from wiping the save. Keep that.
 All reads and writes go through the `store` adapter (`store.get(key)` → Promise of the stored
@@ -124,15 +127,25 @@ desktop Chromium: manifest parses, worker installs and controls the page, the ga
 with the server stopped, a run restores from `localStorage`. Not yet done on a phone: the
 Android Chrome install prompt and the iOS 26 Home Screen install — do both once it is hosted.
 
-## Undo, revive and the reward hook
-One free undo per run (`UNDO_FREE_PER_RUN`), then `requestReward(grant)` gates it. Today
-`requestReward` shows a cancelable placeholder countdown (`AD_STUB_SECONDS`) and then grants —
-that is the seam where a real rewarded-ad SDK goes; nothing else in the file should know about
-ads. Undo restores a full pre-drop snapshot (balls, score, combo, next piece) and resets the
-line timers. Runs that used undo carry `u` and show ↶ on the scoreboard so the board stays
-honest. Design note from testing: undoing one drop at game over rarely saves a run because
-the losing position was set several drops earlier; the rewarded item that actually rescues is
-the **revive** below. Undo stays for mid-run misplacements.
+## Undo, the rescue chooser, revive and the reward hook
+The bar's undo rewinds one drop: free once per run (`UNDO_FREE_PER_RUN`), then ad-gated. Every
+drop pushes a pre-drop snapshot (balls, score, combo, next piece, the seed's place) onto a ring
+of `SNAPS_KEEP` (10); `doUndo(n)` restores the nth from the end, resets the line timers and adds
+`n` to `u`. `requestReward(grant, placement, count)` is the seam where a real rewarded-ad SDK
+goes: `placement` names the reward (`undo`, `undo5`, `undo10`, `revive`) so the SDK can pick an
+ad unit, `count` is how many ads it costs, and `grant()` runs only after the last one. Today it
+shows a cancelable placeholder countdown per placement (`AD_STUB`, seconds), with "Ad 1 of 2" on
+the box for a two-ad reward. Nothing else in the file knows about ads.
+
+**Rescue chooser (shipped 2026-09-25).** The game-over card's gold "Rescue this run" opens a
+chooser with four rows and their cost: Undo 1 move (free once, then an ad), Undo 5 moves (an
+ad), Undo 10 moves (two ads), Clear the smallest orbs (free the first time ever, then an ad).
+The paid rewinds and the clear are once per run each (`used5`, `used10`, `revivesUsed`, saved
+with the live run); rows are disabled when spent or when the ring is too short. Every rescue
+marks the run: ↶ with the moves undone, ↻ for the clear. A run finished with none of them is a
+**clean run**: ✦ on the board and a "Clean run" line on the card. Design note from testing:
+undoing one drop at game over rarely saves a run because the losing position was set several
+drops earlier; five or ten moves do, and the clear is the other rescue.
 
 **Revive** (shipped 2026-09-24). On the game-over card, "Clear the smallest orbs" removes the
 `REVIVE_CLEAR` (8) smallest orbs by tier (ties: the higher one goes first), zeroes every orb's
@@ -153,9 +166,35 @@ play, the owner's call is "clear the highest N" or "clear everything above the l
 are one-line changes to the sort in `doRevive`.
 
 ## Scoreboard
-Bottom sheet, filters All time (default) / Day / Week / Month (rolling 24 h / 7 d / 30 d),
-top 10 rows, run count and average, latest run highlighted (or appended with its rank if it's
+Bottom sheet, time filters All (default) / Day / Week / Month (rolling 24 h / 7 d / 30 d) /
+Today (runs on today's seed only), a Casual / Rush pair, and a Here / Online source pair, top
+10 rows, run count and average, latest run highlighted (or appended with its rank if it's
 outside the top 10). Physics pause while it's open.
+
+## Seeds, the daily and challenges (shipped 2026-09-25)
+A seed is six letters from `SEED_AB` (no I, L, O, 0, 1). Piece n of a seeded run is
+`pieceAt(seed, n)`, a pure function (fnv1a of `seed:n` into mulberry32, then the spawn
+weights), so undo, revive and a restored run keep dealing the same pieces and two players on
+one seed face the same sequence. `runSeed` is frozen at `reset()` from `activeSeed` (null for
+free play); `seqN` counts pieces dealt and rides in snapshots and the live save. Today's seed is
+`dailySeed()`, the local date hashed. A challenge link is `#s=SEED&m=MODE`: `parseLink()` at
+load starts that run at once (the link's mode applies to the run only, the saved preference is
+untouched), then `clearLink()` drops the hash so a reload resumes normally. `challenge()` on the
+card and the menu shares the run's seed as a link with the score to beat, or, after a free run,
+makes a fresh seed for the next run. The HUD shows "seed X" or "today X" under the best score.
+Seeded runs are ordinary records with `sd`; the Today filter shows the current day's seed only.
+Not done yet: the online board does not know about seeds, so a friend's score on your seed is
+compared by eye; a per-seed table in the worker is the natural second step.
+
+## Home menu and pause sheet (shipped 2026-09-25)
+Every cold launch opens the home menu (`openHome()`), never an app switch: the mark, a
+tagline, Play (Continue when a run is live, with a New run beside it), the Casual / Rush pair,
+Play today with the daily code, and Scores / Settings / Challenge. A challenge link skips the
+menu. The mark in the HUD is the pause button (`menuHit`): Continue, Scores, Settings, Restart,
+Home; Escape pauses and unpauses on a keyboard. Pausing has one rule: `updatePause()` sets
+`paused` from every overlay flag (home, pause, rescue, sheets, the ad box, the fault card), so a
+sheet closed over the menu never unpauses the game behind it. The harness boots with
+`__skipHome` unless a test asks for the menu.
 
 ## Backlog, in order
 1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a
@@ -166,9 +205,8 @@ outside the top 10). Physics pause while it's open.
    `REVIVE_CLEAR`, `REVIVE_PER_RUN`, `REVIVE_FREE`. Tested: removal picks the smallest, once
    per run, first free then ad-gated (grant and cancel), `v` on the record and ↻ on the board,
    survives reload.
-4. **Daily seed.** Seeded RNG (mulberry32 is fine) for the piece sequence, seeded from the
-   local date; the board gets a "Today" view that only counts seeded runs, so runs are
-   comparable. Keep unseeded free play available.
+4. ~~**Daily seed.**~~ Shipped 2026-09-25 as seeds, the daily and challenge links — see that
+   section. Open: a per-seed table on the online board.
 5. **Difficulty ramp.** Every ~1,000 points shift `SPAWN_W` toward larger pieces (cap at a
    sane ceiling). Re-run `test/physics.js` and report random-play tier/score; target: random
    tops out at tier 7, Sun reachable only with deliberate play.
@@ -329,5 +367,8 @@ rebuilt in `resize()` · `PARTS_MAX` cap · reduced motion switches every feel e
 every option write goes through `setOpt` · `top` keeps 20 per mode · the Rush clock runs on
 real time and pauses with the sheets · music starts only from a gesture · `BOARD_URL` empty
 keeps the board local and the game never waits on the network · release through the script ·
-the wordmark rows in index.html and tools/icons.js stay identical · the first tap on a fresh
-start both dismisses the title and plays · the ambient budget is the list in the ground rules.
+the wordmark rows in index.html and tools/icons.js stay identical · the ambient budget is the
+list in the ground rules · pausing goes through `updatePause()` · the ring keeps ten
+snapshots and the paid rescues are once per run · the clean badge means `u` and `v` are both
+zero · a seeded run deals from `pieceAt` only · the menu opens on cold launches, not app
+switches.

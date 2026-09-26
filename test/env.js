@@ -48,7 +48,7 @@ function makeEnv(storeMap, opts) {
     addEventListener(n, f) { (H['doc:' + n] = H['doc:' + n] || []).push(f); },
     createElement() { return el('anon' + (++anonId)); }
   };
-  const timers = []; let tid = 0;
+  const timers = []; let tid = 0; const g = {};
   const win = {
     innerWidth: 390, innerHeight: 844, devicePixelRatio: 2,
     addEventListener(n, f) { (H['win:' + n] = H['win:' + n] || []).push(f); },
@@ -60,6 +60,8 @@ function makeEnv(storeMap, opts) {
       set: (k, v) => { storeMap.set(k, v); return Promise.resolve({ key: k, value: v }); }
     };
   }
+  if (opts.location) { win.location = opts.location; win.history = { replaceState: (s, t, u) => { g.replaced = u; } }; }
+  if (!opts.home) win.__skipHome = true;   // tests of play boot straight into a run; menu tests pass home: true
   if (opts.localStorage) { // a Map standing in for localStorage; localStorageThrows mimics Safari private mode (writes throw)
     const m = opts.localStorage, deny = () => { throw new Error('QuotaExceededError'); };
     win.localStorage = {
@@ -70,7 +72,7 @@ function makeEnv(storeMap, opts) {
   }
   let now = 0;
   const vibes = [], shares = [];
-  const g = {
+  Object.assign(g, {
     window: win, document: doc, performance: { now: () => now },
     navigator: { vibrate: (p) => { vibes.push(p); return true; }, userActivation: { hasBeenActive: true }, share: (d) => { shares.push(d); return Promise.resolve(); } },
     vibes, shares,
@@ -78,7 +80,7 @@ function makeEnv(storeMap, opts) {
     setTimeout: (f) => { f(); },
     setInterval: (f, ms) => { const id = ++tid; timers.push({ id, f, ms, acc: 0 }); return id; },
     clearInterval: (id) => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); }
-  };
+  });
   g.step = (ms) => { now += ms; for (const t of timers.slice()) { t.acc += ms; while (t.acc >= t.ms) { t.acc -= t.ms; t.f(); } } g._raf(now); };
   g.H = H; g.els = els; g.timers = timers;
   g.fire = (key, ev) => { (H[key] || []).forEach(f => f(ev || {})); };
@@ -97,6 +99,9 @@ src = src.replace(/\}\)\(\);\s*$/, `
 window.__reset=reset;
 window.__setOpt=setOpt;window.__clockFor=clockFor;window.__setBoard=function(u){BOARD_URL=u;};window.__cleanName=cleanName;
 window.__wm=function(){return WM;};window.__wmSvg=wordmarkSVG;
+window.__pieces=function(s,n){var a=[];for(var i=0;i<n;i++)a.push(pieceAt(s,i));return a;};
+window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(+p[0],+p[1]-1,+p[2]));};
+window.__setSeed=function(s){activeSeed=s;};
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
 window.__burst=function(n){for(var i=0;i<n;i++)fx(180,300,8,true);};
@@ -105,7 +110,9 @@ window.__dbg=function(){
   var maxY=-Infinity,minY=Infinity,maxSpeed=0,maxUp=0;
   for(var i=0;i<balls.length;i++){var b=balls[i];if(b.y+b.r>maxY)maxY=b.y+b.r;if(b.y-b.r<minY)minY=b.y-b.r;
     var sp=Math.sqrt((b.x-b.px)*(b.x-b.px)+(b.y-b.py)*(b.y-b.py));if(sp>maxSpeed)maxSpeed=sp;if(b.py-b.y>maxUp)maxUp=b.py-b.y;}
-  return {n:balls.length,score:score,state:state,paused:paused,undosFree:undosFree,undosUsed:undosUsed,snap:!!snapshot,
+  return {n:balls.length,score:score,state:state,paused:paused,undosFree:undosFree,undosUsed:undosUsed,snap:snaps.length>0,snaps:snaps.length,
+    rescueOn:rescueOn,used5:used5,used10:used10,reviveLeft:reviveLeft(),rescue:[r1Btn,r5Btn,r10Btn,rclearBtn].map(function(b){return b.textContent+(b.disabled?'(off)':'');}).join('|'),
+    cleanShown:cleanEl.classList.contains('show'),adk:adkEl.textContent,
     revivesUsed:revivesUsed,revives:save.revives,tiers:balls.map(function(b){return b.t;}),
     parts:parts.length,rings:rings.length,ghosts:ghosts.length,floats:floats.map(function(f){return f.txt;}),timeScale:timeScale,shown:shown,warn:warn,wash:!!wash,sprites:SPR.length,
     maxScale:balls.reduce(function(m,b){return Math.max(m,b.scale);},0),flashing:balls.filter(function(b){return b.flash>0;}).length,squashed:balls.filter(function(b){return b.sq>0;}).length,
@@ -114,7 +121,8 @@ window.__dbg=function(){
     faulted:faulted,faultCount:faultCount,faultShown:faultEl.classList.contains('show'),
     rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
     cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
-    title:titleOn,titleA:titleA,
+    homeOn:homeOn,pauseOn:pauseOn,playLabel:playBtn.textContent,newRunShown:newRunBtn.classList.contains('show'),todayLabel:todayBtn.textContent,scl:scl,offX:offX,offY:offY,
+    seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,
     motes:motes.length,moteY:motes.length?motes[0].y:0,sky:sky.length,pbPulse:pbEl.classList.contains('pulse'),fs:fsEl.textContent,chaincap:chaincapEl.textContent,
     fallingGhosts:ghosts.filter(function(g){return g.fall;}).length,
     modeUI:modeBtns.map(function(b){return b.getAttribute('data-m')+(b.classList.contains('on')?'*':'');}).join(' '),
