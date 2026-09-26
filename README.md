@@ -1,6 +1,7 @@
 # Orbfall
 
-A single-file, one-thumb merge-drop game for mobile browsers. Open `index.html` on a phone
+A single-file, one-thumb merge-drop game for mobile browsers: an orrery on a card table, with
+celestial orbs falling through a night-sky pocket framed in brass. Open `index.html` on a phone
 (or serve the folder and open it on one) and play. Drag to aim, release to drop; two of a kind
 merge; stack past the line and the run ends. One revive per run clears the smallest orbs and
 lets you carry on.
@@ -41,8 +42,9 @@ the install nudge; the online board posts a best score once and renders the shar
 manifest, icons and service worker hold together (shell precached, stale caches dropped,
 cache-first offline). The suite is seeded, so it is the same run every time.
 
-`npm run icons` redraws `icons/` from `tools/icons.js` (the brass orb on felt). Only needed if
-the mark changes; the PNGs are checked in.
+`npm run icons` redraws `icons/` from `tools/icons.js` (the brass orb over a star field, and the
+link-preview image with the pixel wordmark). Only needed if the mark changes; the PNGs are
+checked in.
 
 ## Working on it with Claude Code
 `CLAUDE.md` holds the design record, the physics notes, the persistence schema and an ordered

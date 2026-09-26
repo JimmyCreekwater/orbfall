@@ -96,6 +96,7 @@ let src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
 src = src.replace(/\}\)\(\);\s*$/, `
 window.__reset=reset;
 window.__setOpt=setOpt;window.__clockFor=clockFor;window.__setBoard=function(u){BOARD_URL=u;};window.__cleanName=cleanName;
+window.__wm=function(){return WM;};window.__wmSvg=wordmarkSVG;
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
 window.__burst=function(n){for(var i=0;i<n;i++)fx(180,300,8,true);};
@@ -113,6 +114,9 @@ window.__dbg=function(){
     faulted:faulted,faultCount:faultCount,faultShown:faultEl.classList.contains('show'),
     rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
     cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
+    title:titleOn,titleA:titleA,
+    motes:motes.length,moteY:motes.length?motes[0].y:0,sky:sky.length,pbPulse:pbEl.classList.contains('pulse'),fs:fsEl.textContent,chaincap:chaincapEl.textContent,
+    fallingGhosts:ghosts.filter(function(g){return g.fall;}).length,
     modeUI:modeBtns.map(function(b){return b.getAttribute('data-m')+(b.classList.contains('on')?'*':'');}).join(' '),
     switches:Object.keys(swEls).map(function(k){return k+'='+swEls[k].getAttribute('aria-checked');}).join(' '),soundOff:soundBtn.classList.contains('off'),
     games:save.games,runs:save.runs.length,top:save.top.length,drops:drops,live:!!save.live,tier:runBestTier,store:store.kind,

@@ -10,9 +10,10 @@ file as the design record: it captures decisions already made so they don't get 
   script that drew the icons (`tools/icons.js`, run by hand, output checked in) and the tests.
   Keep it that way; a bundler is not welcome.
 - Canvas 2D at 60 fps on a mid-range phone is the performance bar. Orbs are drawn from one
-  pre-lit sprite per tier and the felt and box are static layers, all rebuilt in `resize()`; the
-  only `shadowBlur` is baked into the top two tiers' sprites at build time. Don't add per-ball
-  shadows, filters, per-frame gradients, or DOM per ball.
+  pre-lit sprite per tier and the table and pocket are static layers, all rebuilt in `resize()`;
+  the contact shadow under every orb and the glow of the top two tiers are baked into the
+  sprites at build time, the felt grain and the star field into the layers. Don't add per-frame
+  shadows, filters, gradients, or DOM per ball.
 - Run `npm test` before and after any change to physics, scoring, persistence, input, or the
   PWA shell. The three suites (physics, functional, pwa) are headless Node (no deps) and take
   a few seconds. The harness seeds `Math.random` (`SEED`, default 1), so a run of the suite is
@@ -21,9 +22,12 @@ file as the design record: it captures decisions already made so they don't get 
   name, refuses the placeholder domain in the Open Graph tags, runs the tests and prints the git
   commands. Never edit the cache name in `sw.js` by hand. PUBLISHING.md is the owner's runbook.
 - Labels are sentence case ("best", "next", "undo"), no middle-dot metadata strings, no
-  all-caps. Motion only in response to play (nothing idles); `prefers-reduced-motion` switches
-  off shake, particles, squash, pop, flash, slow motion, ghosts, the chain wash and the rolling
-  counter, and keeps the colour cues (danger outlines, reveal text).
+  all-caps (the pixel wordmark is a mark, not a label). Ambient life has a small budget and
+  nothing else idles: `MOTES` motes drifting up the pocket, fourteen twinkling stars, the twinkle
+  of the top three tiers, and the held piece's breathing; everything else moves only in response
+  to play. `prefers-reduced-motion` switches all of that off, plus shake, particles, squash, pop,
+  flash, slow motion, ghosts, the restart sweep, the chain wash, the counting card score and the
+  rolling counter, and keeps the colour cues (danger outlines, reveal text).
 - The tuning constants are knobs, not settled values — the owner adjusts them from feel.
 
 ## Map of index.html
@@ -31,7 +35,8 @@ Sections in order, each marked with a `/* ---------- name ---------- */` comment
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
 sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
 settings sheet → online board → share + install nudge → simulation → rendering (static layers,
-sprites, tier signatures, effects) → layout & input → pwa → safety net → loop.
+sprites, identity, tier signatures, ambient life, effects) → layout & input → pwa → safety net →
+loop.
 
 ## Rules of the game (current)
 - 11 tiers (Mote … Sun). Two touching orbs of the same tier merge into the next tier at their
@@ -176,10 +181,31 @@ outside the top 10). Physics pause while it's open.
    a natural end, and the obvious daily challenge once #4 exists.
 
 ## Visual system
-felt `#10231e`, pocket `#0b1915`, brass `#b8955a`, ivory `#f3ecdc`, sage `#8fa59a`,
-coral `#ff6b57` (danger), gold `#ffb020` (achievement / ad-gated). Type: `ui-rounded`,
-"SF Pro Rounded", Segoe UI, Roboto, system-ui. Score numerals 800 weight, tight tracking,
-tabular figures. Orb palette lives in `TIERS`.
+The theme, resolved on 2026-09-25: **an orrery on a card table**. Outside the pocket is the
+table: felt `#10231e` with baked grain, a warm lamp pool from above, two faint brass orbit
+tracks behind the pocket. Inside the pocket is the night the celestial tiers fall through: a
+sky from `#0b1c22` to `#07120f`, a sage and a brass nebula wash, a seeded star field, framed by a
+lit brass rim (`#dcc08a` light, `#b8955a`, `#7a6136` dark, two rivets). Brass `#b8955a`, ivory
+`#f3ecdc`, sage `#8fa59a`, coral `#ff6b57` (danger), gold `#ffb020` (achievement / ad-gated).
+Type: `ui-rounded`, "SF Pro Rounded", Segoe UI, Roboto, system-ui. Score numerals 800 weight,
+tight tracking, tabular figures. Orb palette lives in `TIERS`.
+
+**Identity.** The wordmark is a brass orb for the O followed by "rbfall" in a 5×7 pixel font
+(`WM` in index.html; `tools/icons.js` carries the same rows for `icons/share.png`; keep them in
+step). `drawWordmark` draws it on canvas, `wordmarkSVG` gives the game-over card the same mark
+as inline SVG. A fresh start (no run to resume) shows the title moment: the mark over the
+pocket with "Tap to play"; the first tap both dismisses it and plays, the Rush clock waits for
+it, and it fades in a third of a second (none under reduced motion).
+
+**Aesthetic pass two (shipped 2026-09-25).** Depth: a contact shadow baked under every orb
+sprite, felt grain and lamp on the table layer, the sky in the pocket. Transitions: Play again
+sweeps the old board away as falling ghosts (`sweep()`), the card's score counts up
+(`countUp()`), a new best pulses its label and fires a gold burst that glows through the card's
+blur (`celebrate()`). Ambient life within the budget above (`initAmbient`, `drawAmbient`, the
+`tw` twinkle factor in `decorate`, the breathing held piece in `drawAim`). Chrome: brass-lit bar
+buttons, a felt-grain overlay and a brass top edge on the card and sheets (pure CSS, an inline
+SVG noise), the chain captioned with the size reached, a brass slot behind the next piece, a
+landing shadow under the aim guide, a heavier danger line.
 
 ## Feel (shipped 2026-09-24)
 Showy was the brief. Everything below sits behind the `feel knobs` block and is off under
@@ -302,4 +328,6 @@ it clears the undo snapshot · `window.storage` stays first in the store adapter
 rebuilt in `resize()` · `PARTS_MAX` cap · reduced motion switches every feel effect off ·
 every option write goes through `setOpt` · `top` keeps 20 per mode · the Rush clock runs on
 real time and pauses with the sheets · music starts only from a gesture · `BOARD_URL` empty
-keeps the board local and the game never waits on the network · release through the script.
+keeps the board local and the game never waits on the network · release through the script ·
+the wordmark rows in index.html and tools/icons.js stay identical · the first tap on a fresh
+start both dismisses the title and plays · the ambient budget is the list in the ground rules.

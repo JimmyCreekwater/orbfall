@@ -128,7 +128,7 @@ async function playToGameOver(g) {
 
   // the feel pass
   g = boot(new Map()); await settle(); g.step(16.67);
-  check(g.dbg().sprites === 11, 'one lit sprite per tier is built at boot');
+  check(g.dbg().sprites === 12, 'one lit sprite per tier plus the brass orb of the wordmark is built at boot');
   g.window.__burst(12); check(g.dbg().parts <= 420 && g.dbg().parts > 0, 'the particle cap holds under a burst (' + g.dbg().parts + ' particles)');
   g.window.__chain(); check(g.dbg().wash === true && g.dbg().floats.some(t => t === 'chain \u00d73'), 'a chain of three washes the box edge and floats the chain');
   g.reset(); for (let k = 0; k < 15; k++) g.step(16.67);   // let the first piece spawn before tapping
@@ -220,8 +220,9 @@ async function playToGameOver(g) {
   g = boot(rsv); await settle(); g.step(16.67);
   check(g.window.__clockFor(0) === 3 && g.window.__clockFor(1500) === 2.25 && g.window.__clockFor(9000) === 1.5, 'the shot clock shrinks from 3 s to 1.5 s by 3,000 points');
   check(g.dbg().modeUI === 'casual* rush casual* rush', 'the mode pair on the card and in settings shows Casual');
-  for (let k = 0; k < 400; k++) g.step(16.67);
-  check(g.dbg().drops === 0 && g.dbg().runMode === 'casual', 'Casual never drops for you');
+  for (let k = 0; k < 15; k++) g.step(16.67); g.tap(180); for (let k = 0; k < 400; k++) g.step(16.67);
+  check(g.dbg().drops === 1 && g.dbg().runMode === 'casual', 'Casual never drops for you');
+  g.reset(); g.step(16.67);   // a fresh run without the title moment, before its first drop
   g.window.__setOpt('mode', 'rush'); g.step(16.67);
   check(g.dbg().runMode === 'rush' && g.dbg().opt.mode === 'rush' && g.dbg().modeUI === 'casual rush* casual rush*', 'switching to Rush before the first drop applies to this run');
   let autoAt = -1; for (let k = 0; k < 300 && autoAt < 0; k++) { g.step(16.67); if (g.dbg().drops === 1) autoAt = k; }
@@ -311,6 +312,48 @@ async function playToGameOver(g) {
   check(g.dbg().score <= o.score ? postsAfter === postsBefore : postsAfter === postsBefore + 1, 'a lower run posts nothing, a new best posts once');
   g.window.__setOpt('online', false); g.fire('scores:click'); g.step(16.67); g.fire('chips:click', { target: { getAttribute: () => 'online' } });
   check(g.els.rows._html.includes('Turn on the online board'), 'switching the board off in settings stops it');
+
+  // identity: the wordmark glyphs, the card mark, and the title moment on a fresh start
+  const wm = g.window.__wm();
+  check(['r', 'b', 'f', 'a', 'l'].every(k => wm[k].length === 7 && wm[k].every(row => row.length === 5)), 'the wordmark has five glyphs of 5 by 7 pixels');
+  const svg = g.window.__wmSvg(3);
+  check(svg.startsWith('<svg') && (svg.match(/<rect /g) || []).length > 60 && svg.includes('<circle') && g.els.wm._html === svg, 'the card carries the mark as inline SVG: a brass orb and the pixel letters');
+  const tv = new Map();
+  g = boot(tv); await settle(); g.step(16.67);
+  check(g.dbg().title === true && g.dbg().titleA === 1, 'a fresh start shows the title moment');
+  for (let k = 0; k < 20; k++) g.step(16.67);
+  g.tap(180); g.step(16.67); q = g.dbg();
+  check(q.title === false && q.drops === 1, 'the first tap dismisses the title and plays');
+  for (let k = 0; k < 30; k++) g.step(16.67);
+  check(g.dbg().titleA === 0, 'the title fades out within half a second');
+  for (let k = 0; k < 30; k++) g.step(16.67);
+  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
+  g = boot(tv); await settle(); g.step(16.67);
+  check(g.dbg().title === false && g.dbg().n >= 1, 'a resumed run skips the title');
+  g = boot(new Map(), { reduced: true }); await settle(); g.step(16.67); g.tap(180); g.step(16.67);
+  check(g.dbg().titleA === 0, 'under reduced motion the title leaves without a fade');
+
+  // transitions and ambient life: the swept board, the counting score, the new-best burst, motes and twinkle
+  g = boot(new Map()); await settle(); g.step(16.67);
+  q = g.dbg();
+  check(q.motes === 14 && q.sky === 14, 'fourteen motes and fourteen twinkling stars live in the pocket');
+  const moteY0 = q.moteY; for (let k = 0; k < 30; k++) g.step(16.67);
+  check(g.dbg().moteY !== moteY0, 'the motes drift');
+  o = await playToGameOver(g);
+  check(g.dbg().fs === '0' && g.dbg().pbPulse === true && g.dbg().parts >= 60 && g.dbg().chaincap.indexOf('Reached ') === 0, 'the card opens on 0 with the new-best label pulsing, a gold burst behind it, and the sizes captioned (' + g.dbg().chaincap + ')');
+  for (let k = 0; k < 70; k++) g.step(16.67);
+  check(g.dbg().fs === o.score.toLocaleString('en-US'), 'the score counts up to the real number');
+  const orbsBefore = g.dbg().n;
+  g.fire('again:click'); q = g.dbg();
+  check(q.n === 0 && q.fallingGhosts === orbsBefore && orbsBefore > 0, 'Play again sends the old board falling away (' + orbsBefore + ' orbs)');
+  for (let k = 0; k < 90; k++) g.step(16.67);
+  check(g.dbg().ghosts === 0, 'and it is gone within a second and a half');
+  g = boot(new Map(), { reduced: true }); await settle(); g.step(16.67);
+  const my0 = g.dbg().moteY; for (let k = 0; k < 30; k++) g.step(16.67);
+  await playToGameOver(g); q = g.dbg();
+  check(g.dbg().moteY === my0 && q.fs !== '0' && q.parts === 0, 'under reduced motion the motes hold still, the score lands at once and nothing bursts');
+  g.fire('again:click');
+  check(g.dbg().fallingGhosts === 0, 'and the board clears without the sweep');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

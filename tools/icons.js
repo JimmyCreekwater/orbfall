@@ -1,15 +1,25 @@
-// Draws the mark (the brass orb on felt, shaded exactly like drawBall in index.html) and writes the PWA icons and
-// the link-preview image. No dependencies. Run `npm run icons` only if the mark changes: the PNGs are checked in,
-// this is not a build step.
+// Draws the mark (the brass orb on felt, shaded exactly like drawBall in index.html, over a seeded star field) and
+// writes the PWA icons and the link-preview image, which also carries the pixel wordmark. No dependencies. Run
+// `npm run icons` only if the mark changes: the PNGs are checked in, this is not a build step.
+// The wordmark glyphs are the same rows as WM in index.html; keep them in step.
 'use strict';
 const fs = require('fs'), path = require('path'), zlib = require('zlib');
 const OUT = path.join(__dirname, '..', 'icons');
 
 /* palette, as in index.html */
-const FELT = [0x10, 0x23, 0x1e], WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+const FELT = [0x10, 0x23, 0x1e], WHITE = [255, 255, 255], BLACK = [0, 0, 0], IVORY = [0xf3, 0xec, 0xdc];
 const hex = c => { const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, t, to) => [a[0] + (to[0] - a[0]) * t, a[1] + (to[1] - a[1]) * t, a[2] + (to[2] - a[2]) * t];
 const BRASS = hex('#b8955a'), HI = mix(BRASS, .55, WHITE), LO = mix(BRASS, .38, BLACK);
+
+const WM = {
+  r: ['.....', '.....', '.###.', '.#..#', '.#...', '.#...', '.#...'],
+  b: ['#....', '#....', '####.', '#...#', '#...#', '#...#', '####.'],
+  f: ['..##.', '.#...', '####.', '.#...', '.#...', '.#...', '.#...'],
+  a: ['.....', '.....', '.###.', '....#', '.####', '#...#', '.####'],
+  l: ['.#...', '.#...', '.#...', '.#...', '.#...', '.#...', '..##.']
+};
+const WM_WORD = 'rbfall';
 
 /* canvas-style radial gradient: the parameter of the largest circle (centre c0->c1, radius r0->r1) through p */
 function radialT(px, py, x0, y0, r0, x1, y1, r1) {
@@ -26,31 +36,48 @@ function inRoundRect(x, y, W, H, R) {
   const cx = x < R ? R : x > W - R ? W - R : x, cy = y < R ? R : y > H - R ? H - R : y;
   return (x - cx) ** 2 + (y - cy) ** 2 <= R * R;
 }
+function lcg(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+function stars(W, H, n, seed) { const r = lcg(seed), out = []; for (let i = 0; i < n; i++) out.push({ x: r() * W, y: r() * H, r: .35 + r() * r() * 1.4, a: .18 + r() * .55 }); return out; }
+
+/* is (fx, fy), a position inside one wordmark cell in 0..1, on the rounded pixel? */
+function inCell(fx, fy) {
+  const g = .08, s = 1 - 2 * g, rr = .22, u = fx - g, v = fy - g;
+  if (u < 0 || v < 0 || u > s || v > s) return false;
+  const cx = u < rr ? rr : u > s - rr ? s - rr : u, cy = v < rr ? rr : v > s - rr ? s - rr : v;
+  return (u - cx) ** 2 + (v - cy) ** 2 <= rr * rr;
+}
+function inWordmark(x, y, wm) {
+  const col = Math.floor((x - wm.x) / wm.px), row = Math.floor((y - wm.y) / wm.px);
+  if (col < 0 || row < 0 || row > 6) return false;
+  const li = Math.floor(col / 6), c = col % 6; if (li >= WM_WORD.length || c === 5) return false;
+  if (WM[WM_WORD[li]][row][c] !== '#') return false;
+  return inCell((x - wm.x) / wm.px - col, (y - wm.y) / wm.px - row);
+}
 
 /* colour of one sample point as [r, g, b, alpha 0..1]; the orb sits at spec.at (fractions of W, H), sized by min(W, H) */
 function shade(x, y, W, H, spec) {
   const S = Math.min(W, H);
   if (spec.corner && !inRoundRect(x, y, W, H, S * spec.corner)) return [0, 0, 0, 0];
-  // felt with the game's vignette: white at .035 in the centre fading to black at .4 towards the edge
   const tv = clamp01(radialT(x, y, W / 2, H * .42, S * .12, W / 2, H * .5, S * .85));
   let col = mix(FELT, .035 + (.4 - .035) * tv, mix(WHITE, tv, BLACK));
+  for (const st of spec.stars) { const d = Math.hypot(x - st.x, y - st.y); if (d <= st.r * spec.starScale) col = mix(col, st.a, IVORY); }
   const at = spec.at || [.5, .5], cx = W * at[0], cy = H * at[1], r = S * spec.orb, dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy), w = Math.max(1.5, r * .06);
-  if (d <= r) { // the orb: highlight up-left, base colour, dark at the far edge
+  if (d <= r) {
     const t = clamp01(radialT(x, y, cx - r * .35, cy - r * .4, r * .05, cx, cy, r * 1.05));
     col = t < .55 ? mix(HI, t / .55, BRASS) : mix(BRASS, (t - .55) / .45, LO);
   }
-  if (d >= r - w / 2 && d <= r + w / 2) col = mix(col, .22, BLACK); // rim
+  if (d >= r - w / 2 && d <= r + w / 2) col = mix(col, .22, BLACK);
   if (d <= r) {
-    for (const [ox, oy, rr] of [[.42, .22, .15], [-.18, .5, .1], [.05, -.52, .08]]) // the three soft craters
+    for (const [ox, oy, rr] of [[.42, .22, .15], [-.18, .5, .1], [.05, -.52, .08]])
       if (Math.hypot(dx - ox * r, dy - oy * r) <= rr * r) col = mix(col, .13, BLACK);
-    const ex = dx + .36 * r, ey = dy + .46 * r, cs = Math.cos(-.6), sn = Math.sin(-.6); // specular highlight
+    const ex = dx + .36 * r, ey = dy + .46 * r, cs = Math.cos(-.6), sn = Math.sin(-.6);
     const u = ex * cs + ey * sn, v = -ex * sn + ey * cs;
     if ((u / (.2 * r)) ** 2 + (v / (.11 * r)) ** 2 <= 1) col = mix(col, .38, WHITE);
   }
+  if (spec.wm && inWordmark(x, y, spec.wm)) col = IVORY;
   return [col[0], col[1], col[2], 1];
 }
 
-/* supersampled raster to straight-alpha RGBA */
 function raster(W, H, spec, ss) {
   const buf = Buffer.alloc(W * H * 4);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -84,16 +111,18 @@ function png(W, H, rgba) {
     chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
+const sharePx = 19, shareOrbX = .22;
 const IMAGES = [
-  ['icon-192.png', 192, 192, { corner: .22, orb: .33 }],        // purpose any: rounded felt tile
+  ['icon-192.png', 192, 192, { corner: .22, orb: .33 }],
   ['icon-512.png', 512, 512, { corner: .22, orb: .33 }],
-  ['maskable-192.png', 192, 192, { orb: .32 }],                 // purpose maskable: full bleed, orb inside the 80% safe zone
+  ['maskable-192.png', 192, 192, { orb: .32 }],
   ['maskable-512.png', 512, 512, { orb: .32 }],
-  ['apple-touch-icon.png', 180, 180, { orb: .36 }],             // iOS masks its own corners
-  ['share.png', 1200, 630, { orb: .36, at: [.5, .5] }]          // link preview (og:image), the mark on felt
+  ['apple-touch-icon.png', 180, 180, { orb: .36 }],
+  ['share.png', 1200, 630, { orb: .26, at: [shareOrbX, .5], wm: { x: 1200 * shareOrbX + 630 * .26 + 36, y: 315 - 7 * sharePx / 2, px: sharePx } }]
 ];
 fs.mkdirSync(OUT, { recursive: true });
 for (const [name, w, h, spec] of IMAGES) {
+  spec.stars = stars(w, h, w > 600 ? 140 : 22, 11); spec.starScale = Math.max(1, Math.min(w, h) / 220);
   fs.writeFileSync(path.join(OUT, name), png(w, h, raster(w, h, spec, w > 600 ? 2 : 4)));
   console.log('icons/' + name + '  ' + w + 'x' + h);
 }
