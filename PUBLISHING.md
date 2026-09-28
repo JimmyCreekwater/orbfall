@@ -25,7 +25,8 @@ You need: a free GitHub account, and this folder as it is (it is already a git r
 4. **Tell the game its own address.** Open `index.html`, find the two lines that say `https://orbfall.example`
    (they are near the top, `og:url` and `og:image`) and replace that part with your address, keeping the rest,
    for example `https://NAME.github.io/orbfall/` and `https://NAME.github.io/orbfall/icons/share.png`.
-   This is what makes a shared link show a picture and a description.
+   This is what makes a shared link show a picture and a description. (The empty `.nojekyll` file in the
+   folder tells Pages to serve the files exactly as they are; keep it.)
 5. **Release.** Every time you change anything, run:
 
    ```bash

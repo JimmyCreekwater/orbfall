@@ -387,8 +387,9 @@ call is needed to agree on it. A deployed board needs `schema.sql` run again and
 `share()` uses the Web Share API with the score, the mode, the seed and the page address; without a share
 sheet (desktop browsers, some webviews) `shareOut()` opens the share box (`#sharebox`) with the text and a
 Copy button (async clipboard, else select-and-copy), so Share and Challenge always do something visible. Open Graph and Twitter tags plus `icons/share.png` (drawn by tools/icons.js) give
-link previews; the domain is a placeholder until the owner fills it in, and the release script
-refuses to ship it. A touch device held sideways (`vw > vh`, short height) pauses behind a
+link previews; since 2026-09-28 they carry the live address, `https://jimmycreekwater.github.io/orbfall/`
+(GitHub Pages from the `main` branch of github.com/JimmyCreekwater/orbfall, with a `.nojekyll` marker),
+and the release script still refuses the old placeholder. A touch device held sideways (`vw > vh`, short height) pauses behind a
 "turn your phone" card via the `rotated` flag, which gates drops, physics and the Rush clock.
 After two finished runs the game-over card offers the deferred Android install prompt when the
 browser gave one, or a one-time iPhone Home Screen hint (`save.hintedInstall`), never when
