@@ -134,7 +134,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 .chips button{flex:1;padding:9px 0;border-radius:12px;border:1.5px solid rgba(184,149,90,.25);background:transparent;
   color:var(--sage);font-weight:700;font-size:13px;cursor:pointer}
 .chips button.on{background:var(--ivory);color:var(--pocket);border-color:var(--ivory)}
-.chips button.src{flex:0 0 auto;padding:9px 13px;color:var(--brass)}
+.chips button.src{color:var(--brass)}
 .chips button.src.on{background:var(--brass);color:var(--pocket);border-color:var(--brass)}
 .modes{margin:10px 0 0}
 .chips.modes button{font-size:12px;padding:7px 0}
@@ -228,6 +228,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 <div id="dim"></div>
 <div id="sheet" role="dialog" aria-label="Scores">
   <div class="sh"><h2>Scores</h2><div><button id="settings" type="button">Settings</button><button id="close" type="button">Done</button></div></div>
+  <div class="chips" id="srcchips" aria-label="Whose scores"></div>
   <div class="chips" id="chips"></div>
   <div class="chips" id="modechips" aria-label="Board mode"></div>
   <div class="stats" id="stats"></div>
@@ -306,7 +307,7 @@ var overEl=$('over'),fsEl=$('fs'),fbEl=$('fb'),pbEl=$('pb'),chainEl=$('chain'),a
 var rescueEl=$('rescue'),r1Btn=$('r1'),r5Btn=$('r5'),r10Btn=$('r10'),rclearBtn=$('rclear'),rescueBackBtn=$('rescueback'),adkEl=$('adk');
 var barEl=$('bar'),soundBtn=$('sound'),undoBtn=$('undo'),scoresBtn=$('scores');
 var dimEl=$('dim'),sheetEl=$('sheet'),closeBtn=$('close'),chipsEl=$('chips'),statsEl=$('stats'),rowsEl=$('rows');
-var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips');
+var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips'),srcChipsEl=$('srcchips');
 var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),faultEl=$('fault'),faultBtn=$('faultbtn');
 var rotateEl=$('rotate'),shareBtn=$('share'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok'),wmEl=$('wm'),challengeBtn=$('challenge');
 var homeEl=$('home'),playBtn=$('play'),newRunBtn=$('newrun'),modesHomeEl=$('modeshome'),todayBtn=$('today'),homeScoresBtn=$('homescores'),homeSettingsBtn=$('homesettings'),homeChallengeBtn=$('homechallenge');
@@ -947,7 +948,8 @@ function boardData(){
 function buildBoardModes(){
   modeChipsEl.innerHTML='';
   [['casual','Casual'],['rush','Rush']].forEach(function(m){var b=document.createElement('button');b.type='button';b.textContent=m[1];b.setAttribute('data-m',m[0]);modeChipsEl.appendChild(b);});
-  [['local','Here'],['online','Online']].forEach(function(s){var b=document.createElement('button');b.type='button';b.className='src';b.textContent=s[1];b.setAttribute('data-src',s[0]);modeChipsEl.appendChild(b);});
+  srcChipsEl.innerHTML='';
+  [['local','My scores'],['online','Online ranking']].forEach(function(s){var b=document.createElement('button');b.type='button';b.className='src';b.textContent=s[1];b.setAttribute('data-src',s[0]);srcChipsEl.appendChild(b);});
 }
 function when(d){   /* the moment of scoring: relative within a day, then the date, with the year once it differs */
   var s=(Date.now()-d)/1000;
@@ -966,7 +968,10 @@ function rowHTML(o){
 function localRow(r,rank,you,note){ return rowHTML({rank:rank,you:you,name:cleanName(opt.name)||'You',score:r.s,tier:r.t,seed:r.sd,u:r.u,v:r.v,ts:r.d,note:note}); }
 function renderBoard(){
   var kids=chipsEl.children,i;
-  for(i=0;i<kids.length;i++){var df=kids[i].getAttribute('data-f');kids[i].classList.toggle('on',df===filter);if(df==='seed')kids[i].style.display=viewSeed?'':'none';}
+  if(boardOnline&&WINDOWS[filter])filter='all';   /* the rolling windows are this device's; the ranking has All, Today and Seed */
+  for(i=0;i<kids.length;i++){var df=kids[i].getAttribute('data-f');kids[i].classList.toggle('on',df===filter);if(df==='seed')kids[i].style.display=viewSeed?'':'none';else if(WINDOWS[df])kids[i].style.display=boardOnline?'none':'';}
+  kids=srcChipsEl.children;
+  for(i=0;i<kids.length;i++)kids[i].classList.toggle('on',(kids[i].getAttribute('data-src')==='online')===boardOnline);
   kids=modeChipsEl.children;
   for(i=0;i<kids.length;i++){var dm=kids[i].getAttribute('data-m');kids[i].classList.toggle('on',dm?dm===boardMode:(kids[i].getAttribute('data-src')==='online')===boardOnline);}
   if(boardOnline){renderOnline();return;}
@@ -1600,7 +1605,9 @@ dimEl.addEventListener('click',closeSheets);
 adcancelBtn.addEventListener('click',cancelReward);
 soundBtn.addEventListener('click',function(e){e.stopPropagation();toggleSound();});
 chipsEl.addEventListener('click',function(e){var f=e.target&&e.target.getAttribute&&e.target.getAttribute('data-f');if(f){filter=f;renderBoard();}});
-modeChipsEl.addEventListener('click',function(e){var t=e.target,ga=t&&t.getAttribute;if(!ga)return;var src=t.getAttribute('data-src');if(src==='local'||src==='online'){boardOnline=src==='online';renderBoard();return;}var m=t.getAttribute('data-m');if(m==='casual'||m==='rush'){boardMode=m;renderBoard();}});
+function boardChip(e){var t=e.target,ga=t&&t.getAttribute;if(!ga)return;var src=t.getAttribute('data-src');if(src==='local'||src==='online'){boardOnline=src==='online';renderBoard();return;}var m=t.getAttribute('data-m');if(m==='casual'||m==='rush'){boardMode=m;renderBoard();}}
+srcChipsEl.addEventListener('click',boardChip);
+modeChipsEl.addEventListener('click',boardChip);
 challengeBtn.addEventListener('click',function(){audio();challenge();});
 seedOtherBtn.addEventListener('click',function(){audio();openSeedBox();});
 seedRandomBtn.addEventListener('click',function(){audio();seedInEl.value=randomSeed();});

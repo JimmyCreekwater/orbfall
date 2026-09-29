@@ -46,7 +46,7 @@ address lines from step 4 and release again.
 
 The board is a tiny program (`server/worker.js`) and a tiny database that live on Cloudflare's free plan.
 Players send their best score per mode, and their best on each seed they play (today's seed, a challenge, a
-typed seed); the board's **Online** tab shows the top 20, and its **Today** and **Seed** tabs the top 20 on that
+typed seed); the board's **Online ranking** shows the top 20, and its **Today** and **Seed** tabs the top 20 on that
 seed. Nothing else is collected: a random player id the game makes up, the name, the score, the size reached
 and the seed. Names are checked for slurs on the phone and again by the worker.
 Visitors' addresses are hashed and forgotten after two minutes; they only slow down floods.
@@ -90,7 +90,7 @@ You need: a free Cloudflare account, and Node (you have it, the tests use it).
    It asks for a value; type any random words and press Enter. Once is enough.
 7. **Connect the game to it.** Open `index.html`, find `var BOARD_URL='';` (in the tuning knobs near the top)
    and put the address between the quotes. Then `npm run release` and the git commands, as in Part 1.
-8. **Try it.** In the game: Settings → type a name → play a run → open Scores → **Online**. Your score should be
+8. **Try it.** In the game: Settings → type a name → play a run → open Scores → **Online ranking**. Your score should be
    there. From a second phone, another name and score should appear on both.
 
 Changing the board later: edit `server/worker.js`, run `wrangler deploy` again; if `schema.sql` changed, run

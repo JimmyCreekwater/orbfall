@@ -17,7 +17,7 @@ words like Glass pass). Then the game opens on a menu: Play, the mode, Play toda
 pieces on the day's seed, which rolls over at midnight UTC), Other seed (type any word or number, or take a
 random code; friends on the same seed get the same pieces), Scores, Settings and Challenge. The brass mark at the top of the play screen is
 the pause button. Challenge shares a link with the seed; whoever opens it plays the same sequence of pieces, and the
-board's Seed and Today tabs (Online) show everyone's best on that seed. Where there is no share sheet,
+board's Seed and Today tabs under Online ranking show everyone's best on that seed. Where there is no share sheet,
 Share and Challenge show the text with a Copy button. At game over, Rescue this run offers Undo 1 (free
 once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets two rescues, then the
 button is struck through; runs finished without any rescue wear a ✦ on the board.
