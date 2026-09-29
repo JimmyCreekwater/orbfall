@@ -97,8 +97,13 @@ Changing the board later: edit `server/worker.js`, run `wrangler deploy` again; 
 step 4 first. The game does not need a new release for that. To wipe the boards:
 `wrangler d1 execute orbfall-board --remote --command "DELETE FROM scores; DELETE FROM seeds"`.
 
-**Deployed the board before 2026-09-25?** The seed board needs the new table and the new worker: from
-`orbfall/server`, run step 4 and step 5 again.
+**Deployed the board before 2026-09-29?** The tables gained columns (the seed and the badges of each best run),
+and `schema.sql` cannot add columns to tables that already exist. From `orbfall/server`, drop the two score tables
+(this forgets every score on the board), then run step 4 and step 5 again:
+
+```bash
+wrangler d1 execute orbfall-board --remote --command "DROP TABLE scores; DROP TABLE seeds"
+```
 
 ## Part 3: before you tell people
 

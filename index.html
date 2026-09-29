@@ -140,14 +140,17 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 .chips.modes button{font-size:12px;padding:7px 0}
 .stats{font-size:13px;color:var(--sage);margin-bottom:6px;min-height:18px}
 .rows{list-style:none;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;min-height:60px}
-.rows li{display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:10px;padding:9px 8px;
+.rows li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 8px;
   border-top:1px solid rgba(243,236,220,.07)}
 .rows li:first-child{border-top:0}
 .rows .rk{color:var(--sage);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
-.rows .sc{font-weight:800;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.rows .sc small{font-weight:600;font-size:12px;color:var(--sage);margin-left:8px;white-space:nowrap}
-.rows .sc i{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:5px}
-.rows .wh{color:var(--sage);font-size:12px;text-align:right;white-space:nowrap}
+.rows .who{min-width:0}
+.rows .nm{display:block;font-weight:800;font-size:15px;color:var(--ivory);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows .nm .bd{font-weight:700;font-size:12px;color:var(--sage);margin-left:6px}
+.rows .meta{display:block;margin-top:2px;font-weight:600;font-size:12px;color:var(--sage);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows .meta i{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+.rows .meta span{margin-left:10px}
+.rows .pt{font-weight:800;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;text-align:right}
 .rows li.you{background:rgba(184,149,90,.1);border-radius:10px;border-top-color:transparent}
 .rows li.you .rk{color:var(--gold)}
 .rows li.you+li{border-top-color:transparent}
@@ -946,17 +949,21 @@ function buildBoardModes(){
   [['casual','Casual'],['rush','Rush']].forEach(function(m){var b=document.createElement('button');b.type='button';b.textContent=m[1];b.setAttribute('data-m',m[0]);modeChipsEl.appendChild(b);});
   [['local','Here'],['online','Online']].forEach(function(s){var b=document.createElement('button');b.type='button';b.className='src';b.textContent=s[1];b.setAttribute('data-src',s[0]);modeChipsEl.appendChild(b);});
 }
-function when(d){
+function when(d){   /* the moment of scoring: relative within a day, then the date, with the year once it differs */
   var s=(Date.now()-d)/1000;
   if(s<60)return 'just now'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago';
-  if(s<7*86400)return Math.floor(s/86400)+'d ago';
-  try{return new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric'});}catch(e){return '';}
+  try{var dt=new Date(d),o={month:'short',day:'numeric'};if(dt.getFullYear()!==new Date().getFullYear())o.year='numeric';return dt.toLocaleDateString(undefined,o);}catch(e){return '';}
 }
-function rowHTML(r,rank,you){
-  var T0=TIERS[r.t]||TIERS[0],T={c:T0.c,n:T0.n+((r.u||r.v)?'':' <b class="clean" title="Clean run">✦</b>')};   /* no rescues: the clean badge */
-  return '<li'+(you?' class="you"':'')+'><span class="rk">'+rank+'</span><span class="sc">'+fmt(r.s)+
-    '<small><i style="background:'+T.c+'"></i>'+T.n+(r.u?' \u21b6'+r.u:'')+(r.v?' \u21bb'+r.v:'')+'</small></span><span class="wh">'+when(r.d)+'</span></li>';
+/* One row for both boards: place, the name with its badges (✦ clean, ↶ moves undone, ↻ clears), then the size
+   reached, the seed (today's or another) and the moment of scoring, and the score at the right. */
+function rowHTML(o){
+  var T=TIERS[o.tier|0]||TIERS[0],u=o.u|0,v=o.v|0,seed=(typeof o.seed==='string'&&/^[A-Z0-9]{1,12}$/.test(o.seed))?o.seed:'';
+  var badges=(u||v)?'<small class="bd">'+(u?'↶'+u:'')+(u&&v?' ':'')+(v?'↻'+v:'')+'</small>':'<b class="clean" title="Clean run">✦</b>';
+  return '<li'+(o.you?' class="you"':'')+'><span class="rk">'+o.rank+'</span><span class="who"><b class="nm">'+esc(o.name)+badges+'</b>'+
+    '<small class="meta"><i style="background:'+T.c+'"></i>'+T.n+(seed?'<span>'+(seed===dailySeed()?'today ':'seed ')+seed+'</span>':'')+(o.note?'<span>'+o.note+'</span>':'')+'<span>'+when(o.ts)+'</span></small></span>'+
+    '<span class="pt">'+fmt(o.score|0)+'</span></li>';
 }
+function localRow(r,rank,you,note){ return rowHTML({rank:rank,you:you,name:cleanName(opt.name)||'You',score:r.s,tier:r.t,seed:r.sd,u:r.u,v:r.v,ts:r.d,note:note}); }
 function renderBoard(){
   var kids=chipsEl.children,i;
   for(i=0;i<kids.length;i++){var df=kids[i].getAttribute('data-f');kids[i].classList.toggle('on',df===filter);if(df==='seed')kids[i].style.display=viewSeed?'':'none';}
@@ -967,11 +974,11 @@ function renderBoard(){
   statsEl.textContent=(filter==='seed'?'Seed '+viewSeed+(D.count?', ':''):'')+(D.count?(D.count+(D.count===1?' run':' runs')+', average '+fmt(D.avg)):'');
   if(!list.length){rowsEl.innerHTML='<li class="empty">'+(filter==='today'?'No runs on this seed yet. Play today from the menu.':filter==='seed'?'No finished runs on seed '+viewSeed+' yet.':'No runs here yet. Every finished run lands on this board.')+'</li>';return;}
   var seen=false;
-  for(i=0;i<list.length;i++){var you=list[i]===lastRec;if(you)seen=true;html+=rowHTML(list[i],i+1,you);}
+  for(i=0;i<list.length;i++){var you=list[i]===lastRec;if(you)seen=true;html+=localRow(list[i],i+1,you);}
   if(lastRec&&!seen&&modeOf(lastRec)===boardMode){
     var idx=D.sorted.indexOf(lastRec);
-    if(idx>=0)html+=rowHTML(lastRec,idx+1,true);
-    else if(filter==='all')html+='<li class="you"><span class="rk">\u2013</span><span class="sc">'+fmt(lastRec.s)+'<small>latest run, outside the top '+TOP_KEEP+'</small></span><span class="wh">'+when(lastRec.d)+'</span></li>';
+    if(idx>=0)html+=localRow(lastRec,idx+1,true);
+    else if(filter==='all')html+=localRow(lastRec,'–',true,'outside the top '+TOP_KEEP);
   }
   rowsEl.innerHTML=html;
 }
@@ -1089,19 +1096,20 @@ function fetchJSON(url,init,ms){
 function syncOnline(announce){
   if(!onlineOn()||onlineBusy)return;
   var m=['casual','rush'].filter(function(k){return stat(k).best>(save.sent[k]||0);})[0]; if(!m)return;
-  var best=stat(m).best,body={cid:save.cid,mode:m,name:cleanName(opt.name),score:best,tier:stat(m).bestTier};
+  var best=stat(m).best,br=bestRec(m),body={cid:save.cid,mode:m,name:cleanName(opt.name),score:best,tier:stat(m).bestTier,seed:br&&br.sd?br.sd:null,u:br?br.u|0:0,v:br?br.v|0:0};
   onlineBusy=true;
   fetchJSON(boardApi('/score'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},8000).then(function(r){
     onlineBusy=false;
     if(r&&r.ok){ save.sent[m]=best; persist(); delete onlineCache[m]; if(announce&&r.rank)toast('Online rank #'+r.rank+(m==='rush'?' in Rush':'')); syncOnline(announce); }
   },function(){ onlineBusy=false; });
 }
+function bestRec(mode){ var b=null; for(var i=0;i<save.top.length;i++){var r=save.top[i];if(modeOf(r)===mode&&(!b||r.s>b.s))b=r;} return b; }   /* the record behind a mode's best: its seed and badges ride along */
 function seedBest(seed,mode){ var b=null; for(var i=0;i<save.runs.length;i++){var r=save.runs[i];if(r.sd===seed&&modeOf(r)===mode&&(!b||r.s>b.s))b=r;} return b; }
 function syncSeed(announce){   /* a seeded run's best goes to the seed board, best per player per seed and mode */
   if(!onlineOn()||!runSeed||seedBusy)return;
   var best=seedBest(runSeed,runMode); if(!best)return;
   var k=runSeed+'|'+runMode; if((save.seedSent[k]||0)>=best.s)return;
-  var body={cid:save.cid,mode:runMode,seed:runSeed,name:cleanName(opt.name),score:best.s,tier:best.t};
+  var body={cid:save.cid,mode:runMode,seed:runSeed,name:cleanName(opt.name),score:best.s,tier:best.t,u:best.u|0,v:best.v|0};
   seedBusy=true;
   fetchJSON(boardApi('/seed'),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},8000).then(function(r){
     seedBusy=false;
@@ -1125,8 +1133,8 @@ function renderOnline(){
 function renderOnlineRows(rows){
   if(!rows.length){rowsEl.innerHTML='<li class="empty">No scores here yet. Yours could be first.</li>';return;}
   var html='';
-  for(var i=0;i<rows.length;i++){var r=rows[i],you=r.cid===save.cid,T=TIERS[r.tier|0]||TIERS[0];
-    html+='<li'+(you?' class="you"':'')+'><span class="rk">'+(i+1)+'</span><span class="sc">'+fmt(r.score|0)+'<small><i style="background:'+T.c+'"></i>'+esc(r.name)+'</small></span><span class="wh">'+when(r.ts||Date.now())+'</span></li>';}
+  for(var i=0;i<rows.length;i++){var r=rows[i];
+    html+=rowHTML({rank:i+1,you:r.cid===save.cid,name:r.name,score:r.score,tier:r.tier,seed:r.seed,u:r.u,v:r.v,ts:r.ts||Date.now()});}
   rowsEl.innerHTML=html;
 }
 

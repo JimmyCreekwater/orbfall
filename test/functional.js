@@ -20,6 +20,7 @@ async function playToGameOver(g) {
   const scoreText = over.score.toLocaleString('en-US');
   check(g.dbg().paused === true, 'physics pause while the board is open');
   check(g.els.rows._html.includes(scoreText) && g.els.rows._html.includes('class="you"'), 'all-time board shows and highlights the run');
+  check(g.els.rows._html.includes('<b class="nm">You') && g.els.rows._html.includes('class="pt">' + scoreText + '<') && g.els.rows._html.includes('<span>just now</span>'), 'a row carries the name, the score and the moment of scoring');
   g.fire('chips:click', { target: { getAttribute: () => 'day' } });
   check(g.els.rows._html.includes(scoreText), 'day filter includes the run');
   g.fire('chips:click', { target: { getAttribute: () => 'month' } });
@@ -297,13 +298,16 @@ async function playToGameOver(g) {
   o = await playToGameOver(g); await settle(); await settle();
   let post = g.fetchLog.find(f => f.url === 'https://board.test/score'), body = post && JSON.parse(post.init.body);
   check(post && post.init.method === 'POST' && body.mode === 'casual' && body.name === 'Jim' && body.score === o.score && body.cid === g.dbg().cid, 'a finished run posts the best score with the name and the player id');
+  check(body.u === 0 && body.v === 0 && body.seed === null, 'and the badges and seed of that run ride along (none here)');
   sv = JSON.parse(ob.get('orbfall_v2'));
   check(sv.sent.casual === o.score && sv.cid === body.cid && g.dbg().floats.some(t => t.indexOf('Online rank') === 0), 'what was sent is remembered and the rank is announced');
   const cid = body.cid;
-  g.fetchReply = (url) => url.indexOf('/top?mode=casual') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada', score: 9000, tier: 8, ts: Date.now() }, { cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : url.indexOf('/top') >= 0 ? { status: 500, body: { error: 'server' } } : { status: 200, body: { ok: true, rank: 2 } };
+  g.fetchReply = (url) => url.indexOf('/top?mode=casual') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada <b>', score: 9000, tier: 8, seed: 'K7Q2ZD', u: 3, v: 1, ts: Date.now() - 3 * 86400000 }, { cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : url.indexOf('/top') >= 0 ? { status: 500, body: { error: 'server' } } : { status: 200, body: { ok: true, rank: 2 } };
   g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
   const rows = g.els.rows._html;
   check(rows.includes('Ada') && rows.includes('class="you"') && rows.indexOf('Ada') < rows.indexOf('Jim'), 'the Online tab lists the shared top with your own row highlighted');
+  check(rows.includes('<b class="nm">Ada &lt;b&gt;<small class="bd">↶3 ↻1</small></b>') && rows.includes('<span>seed K7Q2ZD</span>') && rows.includes('class="pt">9,000<') && !rows.includes('class="you"><span class="rk">1<') && (rows.match(/class="clean"/g) || []).length === 1, 'online rows show the escaped name, the badges, the seed and the score; the clean badge only where no rescue was used');
+  check(/<span>[A-Z][a-z]{2} \d{1,2}<\/span>/.test(rows), 'a score older than a day shows its date');
   g.fire('modechips:click', { target: { getAttribute: () => 'rush' } }); await settle(); await settle();
   check(g.els.rows._html.includes('Could not reach'), 'a failing board shows a message instead of breaking');
   g.fire('close:click'); g.step(16.67);
@@ -495,7 +499,7 @@ async function playToGameOver(g) {
   g.window.__setBoard('https://board.test/'); g.window.__setOpt('name', 'Jim'); g.window.__setSeed('K7Q2ZD'); g.reset(); g.step(16.67);
   o = await playToGameOver(g); await settle(); await settle();
   const seedPost = g.fetchLog.find(f => f.url === 'https://board.test/seed');
-  check(seedPost && JSON.parse(seedPost.init.body).seed === 'K7Q2ZD' && JSON.parse(seedPost.init.body).score === o.score && JSON.parse(sb.get('orbfall_v2')).seedSent['K7Q2ZD|casual'] === o.score, 'a seeded run posts its best to the seed board and remembers it');
+  check(seedPost && JSON.parse(seedPost.init.body).seed === 'K7Q2ZD' && JSON.parse(seedPost.init.body).score === o.score && JSON.parse(seedPost.init.body).u === 0 && JSON.parse(sb.get('orbfall_v2')).seedSent['K7Q2ZD|casual'] === o.score, 'a seeded run posts its best to the seed board, with its badges, and remembers it');
   g.fetchReply = (url) => url.indexOf('/seed?seed=K7Q2ZD') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada', score: 9000, tier: 8, ts: Date.now() }, { cid: g.dbg().cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : { status: 200, body: { rows: [], ok: true, rank: 1 } };
   g.fire('scores:click'); g.step(16.67); q = g.dbg();
   check(q.viewSeed === 'K7Q2ZD', 'the board knows the run’s seed');

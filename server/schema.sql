@@ -1,10 +1,15 @@
--- Orbfall online board: one row per player (cid) and mode; the best score is kept.
+-- Orbfall online board: one row per player (cid) and mode; the best score is kept, with the seed of that best run
+-- (empty for free play) and its badges: u = moves undone, v = clears. (Columns added 2026-09-29; a board created
+-- before that needs its tables dropped and this file run again, or an ALTER TABLE ... ADD COLUMN for each.)
 CREATE TABLE IF NOT EXISTS scores (
   cid   TEXT    NOT NULL,
   mode  TEXT    NOT NULL,
   name  TEXT    NOT NULL,
   score INTEGER NOT NULL,
   tier  INTEGER NOT NULL,
+  seed  TEXT,
+  u     INTEGER NOT NULL DEFAULT 0,
+  v     INTEGER NOT NULL DEFAULT 0,
   ts    INTEGER NOT NULL,
   PRIMARY KEY (cid, mode)
 );
@@ -19,6 +24,8 @@ CREATE TABLE IF NOT EXISTS seeds (
   name  TEXT    NOT NULL,
   score INTEGER NOT NULL,
   tier  INTEGER NOT NULL,
+  u     INTEGER NOT NULL DEFAULT 0,
+  v     INTEGER NOT NULL DEFAULT 0,
   ts    INTEGER NOT NULL,
   PRIMARY KEY (seed, mode, cid)
 );

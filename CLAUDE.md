@@ -183,6 +183,11 @@ Today (runs on today's seed only) / Seed (the run's seed, shown only when there 
 pair, and a Here / Online source pair, top
 10 rows, run count and average, latest run highlighted (or appended with its rank if it's
 outside the top 10). Physics pause while it's open.
+Every row (since 2026-09-29, both boards, built by `rowHTML`) reads: place, the name in ivory with its badges
+(✦ clean, ↶ moves undone, ↻ clears), then a small line with the size reached, the seed ("today X" or
+"seed X", nothing for free play) and the moment of scoring (`when()`: relative within a day, then the date,
+with the year once it differs), and the score at the right. Local rows carry the device's own name (or
+"You"); online rows carry what the worker stored, escaped.
 
 ## Seeds, the daily and challenges (shipped 2026-09-25)
 A generated seed is six letters from `SEED_AB` (no I, L, O, U, 0, 1); a typed one is any one to twelve
@@ -373,7 +378,9 @@ post a fake score; that is the trade-off). The client side sits in the `online b
 than in `wrangler.toml`), `onlineOn()` needs the
 address, the `online` switch and a name; `syncOnline()` posts a mode's best in the background
 when it beats `save.sent`, after `recordRun()` and when the board opens, and announces the rank
-as a toast; the board's Online chip renders `loadOnline()`, cached a minute per mode, with the
+as a toast (the post carries the seed and the badges of the record behind that best, `bestRec()`, and
+the worker keeps them in `seed`/`u`/`v` columns on both tables, replaced only by a higher score; the
+columns arrived 2026-09-29 and the live tables were dropped and recreated for them); the board's Online chip renders `loadOnline()`, cached a minute per mode, with the
 own row highlighted by `cid` and every message state covered (not connected, no name, off,
 loading, unreachable, empty). Names pass `cleanName()` (safe characters, twelve letters) on both
 ends and are escaped when rendered. The game never waits on the network. The harness stubs
