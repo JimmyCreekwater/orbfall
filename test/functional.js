@@ -20,7 +20,7 @@ async function playToGameOver(g) {
   const scoreText = over.score.toLocaleString('en-US');
   check(g.dbg().paused === true, 'physics pause while the board is open');
   check(g.els.rows._html.includes(scoreText) && g.els.rows._html.includes('class="you"'), 'all-time board shows and highlights the run');
-  check(g.els.rows._html.includes('<b class="nm">You') && g.els.rows._html.includes('class="pt">' + scoreText + '<') && g.els.rows._html.includes('<span>just now</span>'), 'a row carries the name, the score and the moment of scoring');
+  check(g.els.rows._html.includes('<b class="pn">You') && g.els.rows._html.includes('class="pt">' + scoreText + '<') && g.els.rows._html.includes('<span>just now</span>'), 'a row carries the name, the score and the moment of scoring');
   g.fire('chips:click', { target: { getAttribute: () => 'day' } });
   check(g.els.rows._html.includes(scoreText), 'day filter includes the run');
   g.fire('chips:click', { target: { getAttribute: () => 'month' } });
@@ -306,7 +306,7 @@ async function playToGameOver(g) {
   g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
   const rows = g.els.rows._html;
   check(rows.includes('Ada') && rows.includes('class="you"') && rows.indexOf('Ada') < rows.indexOf('Jim'), 'the Online tab lists the shared top with your own row highlighted');
-  check(rows.includes('<b class="nm">Ada &lt;b&gt;<small class="bd">↶3 ↻1</small></b>') && rows.includes('<span>seed K7Q2ZD</span>') && rows.includes('class="pt">9,000<') && !rows.includes('class="you"><span class="rk">1<') && (rows.match(/class="clean"/g) || []).length === 1, 'online rows show the escaped name, the badges, the seed and the score; the clean badge only where no rescue was used');
+  check(rows.includes('<b class="pn">Ada &lt;b&gt;<small class="bd">↶3 ↻1</small></b>') && rows.includes('<span>seed K7Q2ZD</span>') && rows.includes('class="pt">9,000<') && !rows.includes('class="you"><span class="rk">1<') && (rows.match(/class="clean"/g) || []).length === 1, 'online rows show the escaped name, the badges, the seed and the score; the clean badge only where no rescue was used');
   check(/<span>[A-Z][a-z]{2} \d{1,2}<\/span>/.test(rows), 'a score older than a day shows its date');
   g.fire('modechips:click', { target: { getAttribute: () => 'rush' } }); await settle(); await settle();
   check(g.els.rows._html.includes('Could not reach'), 'a failing board shows a message instead of breaking');

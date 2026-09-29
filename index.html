@@ -145,8 +145,8 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 .rows li:first-child{border-top:0}
 .rows .rk{color:var(--sage);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
 .rows .who{min-width:0}
-.rows .nm{display:block;font-weight:800;font-size:15px;color:var(--ivory);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rows .nm .bd{font-weight:700;font-size:12px;color:var(--sage);margin-left:6px}
+.rows .pn{display:block;font-weight:800;font-size:15px;color:var(--ivory);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rows .pn .bd{font-weight:700;font-size:12px;color:var(--sage);margin-left:6px}
 .rows .meta{display:block;margin-top:2px;font-weight:600;font-size:12px;color:var(--sage);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rows .meta i{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:-1px;margin-right:5px}
 .rows .meta span{margin-left:10px}
@@ -959,7 +959,7 @@ function when(d){   /* the moment of scoring: relative within a day, then the da
 function rowHTML(o){
   var T=TIERS[o.tier|0]||TIERS[0],u=o.u|0,v=o.v|0,seed=(typeof o.seed==='string'&&/^[A-Z0-9]{1,12}$/.test(o.seed))?o.seed:'';
   var badges=(u||v)?'<small class="bd">'+(u?'↶'+u:'')+(u&&v?' ':'')+(v?'↻'+v:'')+'</small>':'<b class="clean" title="Clean run">✦</b>';
-  return '<li'+(o.you?' class="you"':'')+'><span class="rk">'+o.rank+'</span><span class="who"><b class="nm">'+esc(o.name)+badges+'</b>'+
+  return '<li'+(o.you?' class="you"':'')+'><span class="rk">'+o.rank+'</span><span class="who"><b class="pn">'+esc(o.name)+badges+'</b>'+
     '<small class="meta"><i style="background:'+T.c+'"></i>'+T.n+(seed?'<span>'+(seed===dailySeed()?'today ':'seed ')+seed+'</span>':'')+(o.note?'<span>'+o.note+'</span>':'')+'<span>'+when(o.ts)+'</span></small></span>'+
     '<span class="pt">'+fmt(o.score|0)+'</span></li>';
 }

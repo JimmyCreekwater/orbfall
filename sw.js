@@ -3,7 +3,7 @@
    build when this file changes; the previous cache is deleted on activate, and skipWaiting + clients.claim mean the
    next launch is the new build. There is deliberately no forced reload, so an update never interrupts a run. */
 'use strict';
-var CACHE='orbfall-shell-0.7.0';
+var CACHE='orbfall-shell-0.7.1';
 var SHELL=['./','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png',
   'icons/maskable-192.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
 
