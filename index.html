@@ -91,7 +91,16 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .seeds{margin-top:8px}
 .seeds .sec{flex:1 1 0;width:auto;margin-top:0}
 .seeds .today{flex:3 1 0}
-#seedbox,#sharebox{z-index:13}
+#seedbox,#sharebox,#help{z-index:13}
+.card.help{padding:22px 20px 16px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.card.help .best{margin-bottom:10px}
+.ladder{list-style:none;text-align:left;margin:2px 0 10px}
+.ladder li{display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:10px;padding:4px 2px;border-top:1px solid rgba(243,236,220,.07);font-size:14px}
+.ladder li:first-child{border-top:0}
+.ladder i{display:block;border-radius:50%;margin:0 auto;box-shadow:0 2px 4px rgba(0,0,0,.35)}
+.ladder b{font-weight:700;color:var(--ivory)}
+.ladder b span{color:var(--sage);font-weight:600;margin-left:6px}
+.ladder small{color:var(--gold);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
 #namebox{z-index:15}
 .nm.wide{width:100%;text-align:center;font-size:18px;letter-spacing:.08em;margin:6px 0 12px}
 textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-weight:600;letter-spacing:0;line-height:1.35}
@@ -210,6 +219,15 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     </div>
   </div>
 </div>
+<div id="help" class="veil" role="dialog" aria-modal="true" aria-labelledby="helph">
+  <div class="card help">
+    <h1 id="helph">How it works</h1>
+    <p class="best">Drop an orb. Two of a kind touching merge into the next size, and merges within a second of each other chain for a bonus. Stack past the line for a second and the run ends.</p>
+    <ol class="ladder" id="ladder" aria-label="What two of each size make"></ol>
+    <p class="best">Rush drops the piece when its clock runs out. Undo and the rescues at game over mark the run on the board; a run without them earns ✦.</p>
+    <button class="sec rescue" id="helpok" type="button">Got it</button>
+  </div>
+</div>
 <div id="pause" class="veil" role="dialog" aria-modal="true" aria-labelledby="pauseh">
   <div class="card">
     <div class="wm" id="wmpause" role="img" aria-label="Orbfall"></div>
@@ -315,6 +333,7 @@ var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pau
 var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seedRandomBtn=$('seedrandom'),seedGoBtn=$('seedgo'),seedBackBtn=$('seedback');
 var shareBoxEl=$('sharebox'),shareTextEl=$('sharetext'),shareCopyBtn=$('sharecopy'),shareDoneBtn=$('sharedone');
 var nameBoxEl=$('namebox'),nameInEl=$('namein'),nameWarnEl=$('namewarn'),nameGoBtn=$('namego'),wmNameEl=$('wmname'),rescueNoteEl=$('rescuenote'),rescueCapEl=$('rescuecap');
+var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;   // the help legend behind the HUD's question mark
 var TAU=Math.PI*2;
 var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
@@ -988,7 +1007,7 @@ function renderBoard(){
   rowsEl.innerHTML=html;
 }
 /* One rule for pausing: the game runs only when nothing is over it. Every overlay sets its flag, then updatePause(). */
-function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||boardOpen()||optsOpen()||!!adTimer||faulted; }
+function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||!!adTimer||faulted; }
 function openBoard(){ boardMode=runMode; boardOnline=onlineOn(); viewSeed=runSeed||activeSeed||null;   /* the sheet opens on the ranking whenever it can: the shared list is the pull */ if(filter==='seed'&&!viewSeed)filter='all'; renderBoard(); dimEl.classList.add('show'); sheetEl.classList.add('show'); updatePause(); updateBar(); syncOnline(false); syncSeed(false); }
 function closeBoard(){ dimEl.classList.remove('show'); sheetEl.classList.remove('show'); updatePause(); updateBar(); }
 function boardOpen(){return sheetEl.classList.contains('show');}
@@ -1024,7 +1043,7 @@ function buildOpts(){
   msp.textContent='Mode'; msm.textContent='Casual is endless. Rush adds a shot clock that tightens as you score.'; mlab.appendChild(msp); mlab.appendChild(msm);
   modesOptEl=document.createElement('div'); modesOptEl.className='chips modes';
   mrow.appendChild(mlab); mrow.appendChild(modesOptEl); optListEl.appendChild(mrow);
-  buildModes(); buildBoardModes();
+  buildModes(); buildBoardModes(); buildLadder();
 }
 var modeBtns=[],modesOptEl=null,nameEl=null;
 function buildModes(){   /* the same Casual / Rush pair on the game-over card and in settings; it sets the next run's mode */
@@ -1047,7 +1066,7 @@ function applyOpts(){
 function openOpts(){ syncOpts(); sheetEl.classList.remove('show'); dimEl.classList.add('show'); optsEl.classList.add('show'); updatePause(); updateBar(); }
 function closeOpts(){ dimEl.classList.remove('show'); optsEl.classList.remove('show'); updatePause(); updateBar(); }
 function optsOpen(){return optsEl.classList.contains('show');}
-function closeSheets(){ if(optsOpen())closeOpts(); else if(boardOpen())closeBoard(); else if(shareOn)closeShareBox(); else if(seedBoxOn)closeSeedBox(); else if(rescueOn)closeRescue(); else if(pauseOn)closePause(); else if(state==='play'&&!homeOn&&!nameOn)openPause(); }
+function closeSheets(){ if(optsOpen())closeOpts(); else if(boardOpen())closeBoard(); else if(helpOn)closeHelp(); else if(shareOn)closeShareBox(); else if(seedBoxOn)closeSeedBox(); else if(rescueOn)closeRescue(); else if(pauseOn)closePause(); else if(state==='play'&&!homeOn&&!nameOn)openPause(); }
 function openSeedBox(){ seedBoxOn=true; seedInEl.value=dailySeed(); seedBoxEl.classList.add('show'); updatePause(); }
 function closeSeedBox(){ seedBoxOn=false; seedBoxEl.classList.remove('show'); updatePause(); }
 function openShareBox(text){ shareOn=true; shareTextEl.value=text; shareBoxEl.classList.add('show'); updatePause(); }
@@ -1068,6 +1087,20 @@ function closeHome(){ homeOn=false; homeEl.classList.remove('show'); updatePause
 function openPause(){ if(state!=='play'||homeOn)return; pauseOn=true; pauseEl.classList.add('show'); updatePause(); updateBar(); }
 function closePause(){ pauseOn=false; pauseEl.classList.remove('show'); updatePause(); updateBar(); }
 function menuHit(lx,ly){ return Math.hypot(lx-LW/2,ly-40)<24; }   /* the brass mark at the top of the HUD */
+/* The help legend: a question mark at the HUD's bottom right opens a card with the rules and the merge ladder,
+   one row per size with what two of it make and the points for that merge (pts of the pair's tier; two Suns
+   vanish for 200). Built once from TIERS, so a palette or scoring change shows up by itself. */
+var HELP_X=LW-24,HELP_Y=118;
+function helpHit(lx,ly){ return Math.hypot(lx-HELP_X,ly-HELP_Y)<18; }
+function openHelp(){ helpOn=true; helpEl.classList.add('show'); updatePause(); }
+function closeHelp(){ helpOn=false; helpEl.classList.remove('show'); updatePause(); }
+function buildLadder(){
+  var h='';
+  for(var t=0;t<TIERS.length;t++){var T=TIERS[t],nx=TIERS[t+1],d=Math.round(8+t*1.6);
+    h+='<li><i style="width:'+d+'px;height:'+d+'px;background:radial-gradient(circle at 32% 30%,'+T.hi+','+T.c+' 60%,'+T.lo+')"></i>'+
+      '<b>'+T.n+'<span>'+(nx?'two make '+(/^[AEIOU]/.test(nx.n)?'an ':'a ')+nx.n:'two vanish')+'</span></b><small>+'+(nx?pts(t):200)+'</small></li>';}
+  ladderEl.innerHTML=h;
+}
 
 /* ---------- online board: best score per player and mode, sent with a name the player typed ---------- */
 /* BOARD_URL points at server/worker.js once it is deployed. The game never waits on the network: a finished run
@@ -1542,6 +1575,11 @@ function drawHUD(){
     var pr=7+nxt.t*3.2; ctx.strokeStyle='rgba(184,149,90,.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(LW-44,70,25,0,TAU); ctx.stroke();
     drawBall(LW-44,70,pr,nxt.t,0,null);
   }
+  ctx.textAlign='center'; ctx.textBaseline='middle';   /* the help mark */
+  ctx.fillStyle='rgba(11,25,21,.45)'; ctx.beginPath(); ctx.arc(HELP_X,HELP_Y,11,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(184,149,90,.5)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='#c9b98a'; ctx.font='700 14px '+FONT; ctx.fillText('?',HELP_X,HELP_Y+1);
+  ctx.textBaseline='alphabetic';
 }
 function render(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -1572,7 +1610,9 @@ function toLY(cy){return (cy-offY)/scl;}
 window.addEventListener('resize',resize);
 canvas.addEventListener('pointerdown',function(e){
   audio(); if(state!=='play'||paused)return;
-  if(menuHit(toLX(e.clientX),toLY(e.clientY))){openPause();return;}
+  var hx=toLX(e.clientX),hy=toLY(e.clientY);
+  if(menuHit(hx,hy)){openPause();return;}
+  if(helpHit(hx,hy)){openHelp();return;}
   dragging=true; aimX=toLX(e.clientX);
   try{canvas.setPointerCapture(e.pointerId);}catch(err){}
 });
@@ -1615,6 +1655,7 @@ seedGoBtn.addEventListener('click',function(){ audio(); var s=cleanSeed(seedInEl
 seedBackBtn.addEventListener('click',function(){audio();closeSeedBox();});
 shareCopyBtn.addEventListener('click',function(){audio();copyShare();});
 shareDoneBtn.addEventListener('click',function(){audio();closeShareBox();});
+helpOkBtn.addEventListener('click',function(){audio();closeHelp();});
 nameGoBtn.addEventListener('click',function(){ audio(); var n=cleanName(nameInEl.value); if(!n){nameWarnEl.textContent='A name, please.';return;} if(!nameOK(n)){nameWarnEl.textContent='Pick another name.';return;} setOpt('name',n); closeNameBox(); });
 playBtn.addEventListener('click',function(){ audio(); if(!(state==='play'&&drops>0)){activeSeed=null;reset();} closeHome(); });
 newRunBtn.addEventListener('click',function(){ audio(); activeSeed=null; reset(); closeHome(); });
@@ -1636,6 +1677,7 @@ window.addEventListener('keydown',function(e){
   else if(e.key===' '||e.key==='Enter'){ if(e.target&&e.target.tagName==='BUTTON')return; e.preventDefault();
     if(state==='over'){ if(performance.now()-overShownAt>350)reset(); } else { audio(); drop(aimX); } }
   else if(e.key==='m'||e.key==='M')toggleSound();
+  else if(e.key==='?'||e.key==='h'||e.key==='H'){ if(helpOn)closeHelp(); else if(state==='play'&&!paused)openHelp(); }
   else if(e.key==='z'||e.key==='Z'){audio();tryUndo();}
   else if(e.key==='r'||e.key==='R'){audio();if(state==='over')rescueClear();}
   else if(e.key==='s'||e.key==='S'){ if(boardOpen())closeBoard(); else openBoard(); }

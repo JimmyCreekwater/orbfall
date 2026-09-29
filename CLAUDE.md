@@ -36,7 +36,8 @@ file as the design record: it captures decisions already made so they don't get 
 Sections in order, each marked with a `/* ---------- name ---------- */` comment:
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
 sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
-settings sheet → home menu + pause sheet (with the name gate, the seed box and the share box) →
+settings sheet → home menu + pause sheet (with the name gate, the seed box, the share box and the help
+legend) →
 online board (with the name filter and the seed board) → share + install nudge → simulation →
 rendering (static layers, sprites, identity, tier signatures, ambient life, effects) →
 layout & input → pwa → safety net → loop. Seeds live beside `roll()` in the state section; the
@@ -236,6 +237,14 @@ assassin pass; Ass, sh1t, "f u c k" and SLUT99 do not. The settings name field a
 toast. `server/worker.js` carries identical lists and answers 400 to a failing name; extend both together.
 The harness boots past the gate (`__skipName`, set alongside `__skipHome`, and for `home: true` tests
 unless they pass `nameGate: true`).
+
+## Help legend (shipped 2026-09-29)
+A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
+(`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens
+`#help`: two lines of rules and the merge ladder, built once by `buildLadder()` from `TIERS`, one row per size
+with its colour, "two make a Pip" and the points of that merge (`pts(t)` of the pair's tier, 200 for two Suns),
+so a palette or scoring change shows up by itself. It pauses through `updatePause()` like every overlay,
+Escape closes it, and the card scrolls (`touch-action:pan-y`) on short screens.
 
 ## Backlog, in order
 1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a

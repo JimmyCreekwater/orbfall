@@ -9,7 +9,7 @@ lets you carry on.
 ## Run
 Any static host works. Locally: `npx serve .` then open the URL on your phone, or just open
 `index.html` in a desktop browser (arrow keys aim, space drops, z undoes, r revives at game
-over, s opens scores, m mutes, Escape pauses). Scores and the in-progress run are saved in the
+over, s opens scores, m mutes, h shows how it works, Escape pauses). Scores and the in-progress run are saved in the
 browser's localStorage.
 
 The first launch asks for a name (it goes on the boards; clearly offensive names are refused, ordinary

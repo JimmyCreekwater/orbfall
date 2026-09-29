@@ -125,6 +125,7 @@ window.__dbg=function(){
     rotated:rotated,rotateShown:rotateEl.classList.contains('show'),installShown:installBtn.classList.contains('show'),iosHintShown:iosHintEl.classList.contains('show'),hintedInstall:save.hintedInstall,
     cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
     homeOn:homeOn,pauseOn:pauseOn,playLabel:playBtn.textContent,newRunShown:newRunBtn.classList.contains('show'),todayLabel:todayBtn.textContent,scl:scl,offX:offX,offY:offY,
+    helpOn:helpOn,ladder:(ladderEl.innerHTML.match(/<li>/g)||[]).length,helpX:HELP_X,helpY:HELP_Y,
     nameOn:nameOn,nameWarn:nameWarnEl.textContent,seedBoxOn:seedBoxOn,seedIn:seedInEl.value,shareOn:shareOn,shareText:shareTextEl.value,viewSeed:viewSeed,drift:drift.length,
     rescueLeft:rescueLeft(),rescueBtn:reviveBtn.textContent+(reviveBtn.disabled?'(off)':''),rescueCap:rescueCapEl.textContent,rescueNote:rescueNoteEl.textContent,
     seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,
