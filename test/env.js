@@ -98,6 +98,7 @@ const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let src = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
 src = src.replace(/\}\)\(\);\s*$/, `
 window.__reset=reset;
+BOARD_URL='';   /* the shipped knob points at the live board; tests start unconnected and opt in with __setBoard */
 window.__setOpt=setOpt;window.__clockFor=clockFor;window.__setBoard=function(u){BOARD_URL=u;};window.__cleanName=cleanName;
 window.__wm=function(){return WM;};window.__wmSvg=wordmarkSVG;
 window.__pieces=function(s,n){var a=[];for(var i=0;i<n;i++)a.push(pieceAt(s,i));return a;};
