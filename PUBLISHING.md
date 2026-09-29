@@ -69,7 +69,7 @@ You need: a free Cloudflare account, and Node (you have it, the tests use it).
    wrangler d1 create orbfall-board
    ```
    It prints a block with a `database_id = "…"` line. Open `server/wrangler.toml` and paste that id in place of
-   `PASTE-THE-ID-PRINTED-BY-wrangler-d1-create`. While you are there, change `SALT` to any random words.
+   `PASTE-THE-ID-PRINTED-BY-wrangler-d1-create`.
 4. **Create the tables.** Run this again whenever `server/schema.sql` changes; it only adds what is missing.
 
    ```bash
@@ -81,9 +81,16 @@ You need: a free Cloudflare account, and Node (you have it, the tests use it).
    wrangler deploy
    ```
    The last line is the address, like `https://orbfall-board.NAME.workers.dev`. Copy it.
-6. **Connect the game to it.** Open `index.html`, find `var BOARD_URL='';` (in the tuning knobs near the top)
+6. **Give it its salt.** The board hashes visitors' addresses for rate limiting, mixed with a salt that lives on
+   Cloudflare as a secret, never in this folder:
+
+   ```bash
+   wrangler secret put SALT
+   ```
+   It asks for a value; type any random words and press Enter. Once is enough.
+7. **Connect the game to it.** Open `index.html`, find `var BOARD_URL='';` (in the tuning knobs near the top)
    and put the address between the quotes. Then `npm run release` and the git commands, as in Part 1.
-7. **Try it.** In the game: Settings → type a name → play a run → open Scores → **Online**. Your score should be
+8. **Try it.** In the game: Settings → type a name → play a run → open Scores → **Online**. Your score should be
    there. From a second phone, another name and score should appear on both.
 
 Changing the board later: edit `server/worker.js`, run `wrangler deploy` again; if `schema.sql` changed, run

@@ -367,7 +367,10 @@ left as a later mode on the same switch.
 upserts `{cid, mode, name, score, tier}` keeping the higher score, rate limited to six posts a
 minute per hashed IP, with plausibility checks only (no accounts, so a determined cheater can
 post a fake score; that is the trade-off). The client side sits in the `online board` section:
-`BOARD_URL` (a knob, empty by default, which keeps everything local), `onlineOn()` needs the
+`BOARD_URL` (a knob; empty keeps everything local; since 2026-09-29 it is the deployed worker,
+`https://orbfall-board.jimmycreekwater.workers.dev`, on the owner's Cloudflare account with the D1 database
+`orbfall-board`, `ALLOWED_ORIGIN` set to the GitHub Pages origin and `SALT` stored as a Wrangler secret rather
+than in `wrangler.toml`), `onlineOn()` needs the
 address, the `online` switch and a name; `syncOnline()` posts a mode's best in the background
 when it beats `save.sent`, after `recordRun()` and when the board opens, and announces the rank
 as a toast; the board's Online chip renders `loadOnline()`, cached a minute per mode, with the

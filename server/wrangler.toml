@@ -6,10 +6,10 @@ compatibility_date = "2026-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "orbfall-board"
-database_id = "PASTE-THE-ID-PRINTED-BY-wrangler-d1-create"
+database_id = "4762b7f7-95df-4f84-88da-662cbc208e51"
 
 [vars]
-# "*" lets any site read the board; put your game's address here (like "https://you.github.io") to restrict it.
-ALLOWED_ORIGIN = "*"
-# any random text; it is mixed into the hashed IPs used for rate limiting. Change it once, then leave it.
-SALT = "change-me-to-anything-random"
+# "*" lets any site read the board; the game's own address (no path) restricts it to the game.
+ALLOWED_ORIGIN = "https://jimmycreekwater.github.io"
+# SALT is not here on purpose: it is mixed into the hashed IPs used for rate limiting and lives on Cloudflare as a
+# secret, set once with `wrangler secret put SALT` (PUBLISHING.md), so it never sits in the public repository.
