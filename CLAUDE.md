@@ -182,7 +182,8 @@ Bottom sheet, time filters All (default) / Day / Week / Month (rolling 24 h / 7 
 Today (runs on today's seed only) / Seed (the run's seed, shown only when there is one), a Casual / Rush
 pair, and a My scores / Online ranking pair on its own row above the filters (renamed from Here / Online on
 2026-09-29 because the owner found those opaque; the rolling windows hide under the ranking, which has All,
-Today and Seed), top
+Today and Seed; the sheet opens on the ranking whenever the board is connected and a name is set, since the
+owner wants the shared list to be the pull, and on My scores otherwise), top
 10 rows, run count and average, latest run highlighted (or appended with its rank if it's
 outside the top 10). Physics pause while it's open.
 Every row (since 2026-09-29, both boards, built by `rowHTML`) reads: place, the name in ivory with its badges

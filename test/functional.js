@@ -303,7 +303,9 @@ async function playToGameOver(g) {
   check(sv.sent.casual === o.score && sv.cid === body.cid && g.dbg().floats.some(t => t.indexOf('Online rank') === 0), 'what was sent is remembered and the rank is announced');
   const cid = body.cid;
   g.fetchReply = (url) => url.indexOf('/top?mode=casual') >= 0 ? { status: 200, body: { rows: [{ cid: 'ffffffffffffffff', name: 'Ada <b>', score: 9000, tier: 8, seed: 'K7Q2ZD', u: 3, v: 1, ts: Date.now() - 3 * 86400000 }, { cid, name: 'Jim', score: o.score, tier: 5, ts: Date.now() }] } } : url.indexOf('/top') >= 0 ? { status: 500, body: { error: 'server' } } : { status: 200, body: { ok: true, rank: 2 } };
-  g.fire('scores:click'); g.step(16.67); g.fire('modechips:click', { target: { getAttribute: () => 'online' } }); await settle(); await settle();
+  g.fire('scores:click'); g.step(16.67);
+  check(g.dbg().boardOnline === true, 'connected and named, the sheet opens on Online ranking without a tap');
+  await settle(); await settle();
   const rows = g.els.rows._html;
   check(rows.includes('Ada') && rows.includes('class="you"') && rows.indexOf('Ada') < rows.indexOf('Jim'), 'the Online ranking lists the shared top with your own row highlighted');
   const srcLabels = g.els.srcchips.children.map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join('|');

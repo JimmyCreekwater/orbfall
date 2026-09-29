@@ -1,6 +1,6 @@
 {
   "name": "orbfall",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
   "description": "Single-file mobile browser merge-drop game",
   "scripts": {
