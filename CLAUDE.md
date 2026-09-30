@@ -253,6 +253,23 @@ with its colour, "two make a Pip" and the points of that merge (`pts(t)` of the 
 so a palette or scoring change shows up by itself. It pauses through `updatePause()` like every overlay,
 Escape closes it, and the card scrolls (`touch-action:pan-y`) on short screens.
 
+## Black hole (shipped 2026-09-29)
+The owner's reward for a hot run: every `HOLE_EVERY` (5,000) points of the run's score, the next piece is a
+black hole. `queueHole()` swaps it into the next slot and hands the displaced piece back to the sequence
+(`seqN--` on a seeded run, so a seeded run stays identical to another player's; a second hole earned while
+one is already queued waits in `holesDue`). The hole is a piece type, `HOLE_T` (−1), never a tier: `mkHole()`
+builds the ball, `drawPiece()` routes it to `drawHoleAt()` (a baked dark core and violet halo, `HSPR`, plus two
+accretion arcs that turn faster while it feeds), the merge test skips negative types, and `land()` ignores it.
+Dropped, it falls like an orb (`phase:'fall'`); landed or 1.4 s old it wakes (`wakeHole`: a reveal, a ring, a
+low hum) and `updateHole()` pulls the nearest orb in, then the next, each as a `suck` ghost that streaks and
+shrinks into it over `HOLE_PULL` seconds shrinking by `HOLE_PULL_K` per orb; on arrival `eatOrb()` grows the
+hole by `HOLE_GROW` (to `HOLE_RMAX`) and scores that size's merge points, no chain. With the board empty it
+`burstHole()`s: a white flash over the pocket (`holeFlash`), the biggest shake, two bursts, rings, a boom, and
+"Board cleared". While a hole is on the board nothing drops, the Rush clock waits, and the line is suspended
+(`physStep` zeroes every `above`). It rides in the undo snapshots (`hd`), the live save (a seven-element ball
+entry plus `hd`) and reduced motion (no ghosts, no flash, orbs vanish in turn). Points eaten can cross the next
+multiple and queue another hole. The legend mentions it; keep the 5,000 there in step with the knob.
+
 ## Backlog, in order
 1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a
    localStorage-only boot, reload, live-run restore, a localStorage that throws, and precedence.
@@ -448,4 +465,5 @@ zero · a seeded run deals from `pieceAt` only · the menu opens on cold launche
 switches · the daily seed is the UTC date on the client and the worker · rescues cap at
 `RESCUES_PER_RUN` per run and every chooser row counts one · `BAD_ANY`/`BAD_WORD` stay identical in
 index.html and server/worker.js · merge motes roll `driftRnd`, never `Math.random` · every inline
-wordmark has its own gradient id.
+wordmark has its own gradient id · a black hole never consumes a seed piece, never merges, and suspends
+the line, the clock and drops while it is on the board.

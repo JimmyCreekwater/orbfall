@@ -226,7 +226,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     <h1 id="helph">How it works</h1>
     <p class="best">Drop an orb. Two of a kind touching merge into the next size, and merges within a second of each other chain for a bonus. Stack past the line for a second and the run ends.</p>
     <ol class="ladder" id="ladder" aria-label="What two of each size make"></ol>
-    <p class="best">Rush drops the piece when its clock runs out. Undo and the rescues at game over mark the run on the board; a run without them earns ✦.</p>
+    <p class="best">Every 5,000 points the next piece is a black hole: drop it and it eats the whole board, scoring every orb. Rush drops the piece when its clock runs out. Undo and the rescues at game over mark the run on the board; a run without them earns ✦.</p>
     <button class="sec rescue" id="helpok" type="button">Got it</button>
   </div>
 </div>
@@ -370,6 +370,10 @@ var ROLL=10;               // score counter easing rate (higher = snappier)
 var REVEAL_LIFE=2.2;       // seconds a newly reached tier's name stays up
 var MOTES=14;              // motes drifting up through the pocket; the ambient-life budget, 0 turns them off
 var DRIFT_MAX=80;          // motes shed by merges (more for bigger orbs) that drift up and fade into the sky
+var HOLE_EVERY=5000;       // every this many points of the run, the next piece is a black hole that eats the board
+var HOLE_R0=15,HOLE_GROW=1.4,HOLE_RMAX=70;   // a black hole's radius when dropped, its growth per orb eaten, its cap
+var HOLE_PULL=.3,HOLE_PULL_K=.9;   // seconds per orb pulled in at first, shrinking by this factor with every orb
+var HOLE_T=-1,HOLE_SR=40,HSPR=null;   // the black hole's piece type (not a tier), its baked sprite's base radius, the sprite
 
 /* ---------- world, in logical units; scaled to fit any portrait screen ---------- */
 var LW=360,LH=676;
@@ -410,6 +414,7 @@ var cur=null,nxt=null,aimX=LW/2,canDropAt=0,tNow=0,dragging=false;
 var state='play',paused=false,shake=0,warn=0,hint=1,nextId=1,overShownAt=0;
 var snaps=[],undosFree=UNDO_FREE_PER_RUN,undosUsed=0,revivesUsed=0,lastRec=null,adTimer=null;
 var used5=false,used10=false,rescueOn=false,rescuesUsed=0;   // the paid rewinds, once each per run; the chooser; rescues taken this run
+var holesDue=0,holeFlash=0;   // black holes owed beyond the one in the next slot; the burst's white flash
 var nameOn=false,nameNext=null,seedBoxOn=false,shareOn=false,viewSeed=null,drift=[],seedBusy=false;   // the name gate, the seed and share boxes, the board's seed, merge motes
 var dirty=false,lastFlush=0,filter='all',loaded=false;
 var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual',online:true,name:''};   // persisted in the save as opt
@@ -449,6 +454,7 @@ function parseLink(){
 }
 function clearLink(){ try{ if(window.history&&window.history.replaceState)window.history.replaceState(null,'',(window.location.pathname||'')+(window.location.search||'')); }catch(e){} }
 function mk(x,y,t){return {id:nextId++,x:x,y:y,px:x,py:y,t:t,r:TIERS[t].r,tr:TIERS[t].r,rot:0,age:0,above:0,scale:1,dead:false,sq:0,flash:0,pop:-1,landed:false,lvy:0};}
+function mkHole(x,y){return {id:nextId++,x:x,y:y,px:x,py:y,t:HOLE_T,r:HOLE_R0,tr:HOLE_R0,rot:0,age:0,above:0,scale:1,dead:false,sq:0,flash:0,pop:-1,landed:false,lvy:0,hole:true,phase:'fall',eaten:0,tm:0};}
 function copy(o){var c={};for(var k in o)c[k]=o[k];return c;}
 function toast(txt){floats.push({x:LW/2,y:BOX.y+200,txt:txt,l:1.8,vy:-10,small:true,age:0});}
 
@@ -532,7 +538,7 @@ function persist(){
 function r1(v){return Math.round(v*10)/10;}
 function liveState(){
   if(state!=='play'||(balls.length===0&&!snaps.length))return null;
-  return {b:balls.map(function(q){return [r1(q.x),r1(q.y),r1(q.px),r1(q.py),q.t];}),
+  return {b:balls.map(function(q){return q.hole?[r1(q.x),r1(q.y),r1(q.px),r1(q.py),HOLE_T,r1(q.tr),q.eaten|0]:[r1(q.x),r1(q.y),r1(q.px),r1(q.py),q.t];}),hd:holesDue,
     s:score,n:nxt?nxt.t:null,c:cur?cur.t:null,bt:runBestTier,d:drops,u:undosUsed,uf:undosFree,v:revivesUsed,m:runMode,sd:runSeed,q:seqN,x5:used5?1:0,x10:used10?1:0,rs:rescuesUsed};
 }
 function flush(){
@@ -540,7 +546,10 @@ function flush(){
   save.live=liveState(); persist();
 }
 function restoreLive(L){
-  balls=L.b.filter(function(a){return a&&a.length>=5&&TIERS[a[4]];}).map(function(a){var q=mk(a[0],a[1],a[4]);q.px=a[2];q.py=a[3];q.age=1;return q;});
+  balls=L.b.filter(function(a){return a&&a.length>=5&&(TIERS[a[4]]||a[4]===HOLE_T);}).map(function(a){
+    if(a[4]===HOLE_T){var h=mkHole(a[0],a[1]);h.px=a[2];h.py=a[3];h.r=h.tr=Math.max(HOLE_R0,+a[5]||HOLE_R0);h.eaten=a[6]|0;h.age=1;return h;}
+    var q=mk(a[0],a[1],a[4]);q.px=a[2];q.py=a[3];q.age=1;return q;});
+  holesDue=L.hd|0;
   runSeed=seedOK(L.sd)?L.sd:null; seqN=L.q|0;
   score=L.s||0; nxt={t:(L.n==null?roll():L.n)}; cur=(L.c==null)?null:{t:L.c,ap:1};
   runBestTier=L.bt||0; drops=L.d||0; undosUsed=L.u||0; undosFree=(L.uf==null)?UNDO_FREE_PER_RUN:L.uf; revivesUsed=L.v||0;
@@ -625,6 +634,9 @@ function sfxMerge(t,chain){   /* pitch climbs with the tier and a semitone per c
   if(t>=8)tone(f*4,f*4.5,.3,'sine',.05,.05);
 }
 function sfxRelease(){tone(900,600,.04,'sine',.05,0);}
+function sfxSuck(t){var f=520*Math.pow(2,-t/9);tone(f*1.8,f*.45,.16,'sine',.09,0);puff(.04,.1,2200,300,0);}
+function sfxHoleWake(){tone(70,140,.9,'sine',.12,0);tone(140,280,.9,'triangle',.05,0);puff(.05,.9,200,1400,0);}
+function sfxHoleBurst(){tone(180,30,.7,'sine',.2,0);tone(900,60,.35,'sawtooth',.06,0);puff(.16,.8,3000,60,0);puff(.08,.4,8000,1000,.05);}
 function sfxThud(t){var f=110*Math.pow(2,-t/10);tone(f,f*.5,.11,'sine',.13,0);puff(.07,.07,900-t*40,200,0);}
 function sfxUndo(){tone(420,640,.14,'sine',.1,0);}
 function sfxRevive(){tone(330,660,.22,'triangle',.12,0);tone(495,990,.26,'sine',.08,.08);puff(.08,.5,400,4000,0);}
@@ -747,11 +759,11 @@ function mCadence(){   /* game over: a soft A minor to E, the track's own full s
 
 /* ---------- game flow ---------- */
 function drop(x){
-  if(state!=='play'||paused||rotated||!cur||tNow<canDropAt)return;
-  var t=cur.t,r=TIERS[t].r;
+  if(state!=='play'||paused||rotated||!cur||tNow<canDropAt||holeOn())return;
+  var t=cur.t,r=t===HOLE_T?HOLE_R0:TIERS[t].r;
   x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,x));
-  snaps.push({b:balls.map(copy),s:score,co:combo,lm:lastMerge,bt:runBestTier,d:drops,n:nxt.t,c:t,q:seqN}); if(snaps.length>SNAPS_KEEP)snaps.shift();
-  balls.push(mk(x,HOVER_Y,t));
+  snaps.push({b:balls.map(copy),s:score,co:combo,lm:lastMerge,bt:runBestTier,d:drops,n:nxt.t,c:t,q:seqN,hd:holesDue}); if(snaps.length>SNAPS_KEEP)snaps.shift();
+  balls.push(t===HOLE_T?mkHole(x,HOVER_Y):mk(x,HOVER_Y,t));
   cur=null; canDropAt=tNow+.42; drops++; dirty=true;
   if(t>runBestTier)runBestTier=t;
   sfxRelease(); updateBar();
@@ -760,7 +772,8 @@ function addScore(base,x,y,big,tier){
   if(tNow-lastMerge<.9)combo++; else combo=1;
   lastMerge=tNow;
   var bonus=combo>1?Math.round(base*.5*(combo-1)):0;
-  score+=base+bonus; dirty=true;
+  var was=score; score+=base+bonus; dirty=true;
+  if(Math.floor(score/HOLE_EVERY)>Math.floor(was/HOLE_EVERY))queueHole();
   floats.push({x:x,y:y-8,txt:'+'+(base+bonus),l:1,vy:-45,big:!!big,age:0});
   if(combo>1){comboAt=tNow;floats.push({x:x,y:y+16,txt:'chain \u00d7'+combo,l:1.1,vy:-32,small:true,age:0});}
   if(combo>=WASH_FROM&&!REDUCED)wash={c:TIERS[tier==null?0:tier].c,l:1};
@@ -792,7 +805,49 @@ function puffAt(x,y,t){   /* dust where an orb lands */
     parts.push({x:x+dir*T.r*.6,y:y,vx:dir*s,vy:-20-Math.random()*30,l:l,ml:l,c:'rgba(143,165,154,.75)',r:1.2+Math.random()*1.5,st:false});}
   if(parts.length>PARTS_MAX)parts.splice(0,parts.length-PARTS_MAX);
 }
-function land(b){ b.sq=REDUCED?0:SQUASH; puffAt(b.x,b.y+b.r,b.t); if(armed())sfxThud(b.t); vib(4); }
+function land(b){ if(b.hole)return; b.sq=REDUCED?0:SQUASH; puffAt(b.x,b.y+b.r,b.t); if(armed())sfxThud(b.t); vib(4); }
+/* The black hole. Crossing a multiple of HOLE_EVERY makes the next piece one (the piece it displaces is handed back
+   to the sequence, so a seeded run stays a seeded run). Dropped, it falls like an orb; landed, it wakes and pulls
+   the nearest orb in, then the next, quicker as it goes, growing with every meal and scoring each orb's merge
+   points; with the board empty it bursts. The line is suspended while it is on the board and nothing else drops. */
+function holeOn(){ for(var i=0;i<balls.length;i++)if(balls[i].hole)return balls[i]; return null; }
+function queueHole(){
+  if(nxt&&nxt.t!==HOLE_T){ if(runSeed)seqN--; nxt={t:HOLE_T}; toast('Black hole next'); }
+  else holesDue++;
+}
+function wakeHole(h){
+  floats.push({x:h.x,y:h.y-44,txt:'Black hole',l:1.6,vy:-14,big:true,col:'#c6a5ff',age:0});
+  rings.push({x:h.x,y:h.y,r:h.r,l:1.2,c:'#8b6bff',w:5,slow:true});
+  sfxHoleWake(); vib([10,30,20]); duck(.5,1.5);
+}
+function eatOrb(h,v){   /* the orb is gone: the hole grows and the size's merge points are scored */
+  if(balls.indexOf(h)<0)return;
+  h.tr=Math.min(HOLE_RMAX,h.tr+HOLE_GROW); var p=pts(v.t),was=score; score+=p; dirty=true;
+  floats.push({x:h.x,y:h.y-h.r-12,txt:'+'+p,l:.8,vy:-40,small:true,age:0});
+  if(Math.floor(score/HOLE_EVERY)>Math.floor(was/HOLE_EVERY))queueHole();
+  if(!REDUCED)shake=Math.min(shake+1.5,SHAKE_MAX);
+}
+function burstHole(h){
+  h.dead=true; balls=balls.filter(function(q){return !q.dead;});
+  var x=h.x,y=h.y;
+  if(!REDUCED){ holeFlash=1; shake=SHAKE_MAX; fx(x,y,MAXT,true); fx(x,y,6,true); rings.push({x:x,y:y,r:h.r,l:1.4,c:'#c6a5ff',w:10,slow:true}); rings.push({x:x,y:y,r:h.r*.5,l:1,c:'#fff',w:6}); }
+  floats.push({x:x,y:y-30,txt:'Board cleared',l:1.8,vy:-16,big:true,col:'#c6a5ff',age:0});
+  sfxHoleBurst(); vib([30,60,40,60,80]); duck(.3,1.5);
+  canDropAt=tNow+.7; dirty=true;
+}
+function updateHole(dt){
+  var h=holeOn(); if(!h||state!=='play'||paused||rotated)return;
+  if(h.phase==='fall'){ if(h.landed||h.age>1.4){h.phase='feed';h.tm=.35;wakeHole(h);} return; }
+  if(h.phase!=='feed')return;
+  h.tm-=dt; if(h.tm>0)return;
+  var v=null,best=1e9,i;
+  for(i=0;i<balls.length;i++){var b=balls[i];if(b.hole||b.dead)continue;var d=Math.hypot(b.x-h.x,b.y-h.y)-b.r;if(d<best){best=d;v=b;}}
+  if(!v){burstHole(h);return;}
+  v.dead=true; balls=balls.filter(function(q){return !q.dead;});
+  var dur=Math.max(.09,HOLE_PULL*Math.pow(HOLE_PULL_K,h.eaten));
+  if(REDUCED)eatOrb(h,v); else ghosts.push({x:v.x,y:v.y,r:v.r,t:v.t,rot:v.rot,l:1,suck:true,hole:h,dur:dur,age:0,sx:v.x,sy:v.y,sr:v.r});
+  h.tm=dur; h.eaten++; if(armed())sfxSuck(v.t);
+}
 function reveal(t,x,y){   /* the first time a run reaches a tier: its name in its colour, a slow ring, an arpeggio */
   var T=TIERS[t];
   floats.push({x:x,y:y-44,txt:T.n,l:REVEAL_LIFE,vy:-16,big:true,col:T.c,age:0});
@@ -856,6 +911,7 @@ function reset(){
   sweep(); balls=[];parts=[];floats=[];rings=[];wash=null; if(countTimer){clearInterval(countTimer);countTimer=null;}
   score=0;shown=0;bestShown=false;timeScale=1;comboAt=-9;deathAt=-9;combo=0;lastMerge=-9;runBestTier=0;drops=0;warn=0;shake=0;
   snaps=[];undosFree=UNDO_FREE_PER_RUN;undosUsed=0;revivesUsed=0;used5=false;used10=false;rescuesUsed=0;lastRec=null; closeRescue();
+  holesDue=0; holeFlash=0; ghosts=ghosts.filter(function(g){return !g.suck;});
   runMode=linkMode||opt.mode; linkMode=null; runSeed=activeSeed; seqN=0;
   startBest=stat(runMode).best; clock=0; clockMax=0; nxt={t:roll()}; cur=null; canDropAt=tNow+.15; state='play';
   overEl.classList.remove('show'); save.live=null; dirty=false; persist(); updateBar(); startMusic(true);
@@ -868,7 +924,7 @@ function doUndo(n){   /* rewind n drops from the ring: the undo button is 1, the
   var S=snaps[snaps.length-n]; snaps.length-=n;
   if(state==='over'){unrecordRun();overEl.classList.remove('show');}
   balls=S.b.map(copy); for(var i=0;i<balls.length;i++){balls[i].dead=false;balls[i].above=0;}
-  score=S.s; combo=S.co; lastMerge=S.lm; runBestTier=S.bt; drops=S.d; nxt={t:S.n}; cur={t:S.c,ap:1}; seqN=S.q|0;
+  score=S.s; combo=S.co; lastMerge=S.lm; runBestTier=S.bt; drops=S.d; nxt={t:S.n}; cur={t:S.c,ap:1}; seqN=S.q|0; holesDue=S.hd|0; holeFlash=0;
   parts=[];floats=[];rings=[];ghosts=[];wash=null;shake=0;warn=0;shown=score;timeScale=1; canDropAt=tNow; state='play'; undosUsed+=n; dirty=true;
   sfxUndo(); toast(n>1?'Undid '+n+' moves':'Undone'); updateBar();
 }
@@ -1242,7 +1298,7 @@ function physStep(){
         var dx=b.x-a.x,dy=b.y-a.y,rr=a.r+b.r;
         if(dx>rr||dx<-rr||dy>rr||dy<-rr)continue;
         var d2=dx*dx+dy*dy; if(d2>=rr*rr)continue;
-        if(a.t===b.t){a.dead=true;b.dead=true;merges.push([a,b]);break;}
+        if(a.t===b.t&&a.t>=0){a.dead=true;b.dead=true;merges.push([a,b]);break;}
         var d=Math.sqrt(d2),nx,ny;
         if(d<1e-6){nx=1;ny=0;d=1e-6;}else{nx=dx/d;ny=dy/d;}
         var ov=rr-d,ma=a.r*a.r,mb=b.r*b.r,inv=1/(ma+mb),ka=mb*inv,kb=ma*inv;
@@ -1278,10 +1334,10 @@ function physStep(){
     }
     balls=balls.filter(function(q){return !q.dead;});
   }
-  var w=0;
+  var w=0,hh=holeOn();
   for(i=0;i<balls.length;i++){
     b=balls[i];
-    if(b.age<.7){b.above=0;continue;}
+    if(b.age<.7||hh){b.above=0;continue;}   /* a black hole on the board suspends the line while it feeds */
     if(b.y-b.r<LINE_Y)b.above+=DT; else b.above=0;
     if(b.above>w)w=b.above;
   }
@@ -1297,7 +1353,9 @@ function updateFx(dt){
   floats=floats.filter(function(f){return f.l>0;});
   for(i=0;i<rings.length;i++){var g=rings[i];g.r+=(g.slow?160:280)*dt;g.l-=dt*(g.slow?.9:2.2);}
   rings=rings.filter(function(g){return g.l>0;});
-  for(i=0;i<ghosts.length;i++){var gh=ghosts[i];if(gh.fall){gh.vy+=1600*dt;gh.y+=gh.vy*dt;gh.x+=gh.vx*dt;gh.rot+=dt*2;gh.l-=dt*1.4;}else gh.l-=dt*4.5;}
+  for(i=0;i<ghosts.length;i++){var gh=ghosts[i];if(gh.fall){gh.vy+=1600*dt;gh.y+=gh.vy*dt;gh.x+=gh.vx*dt;gh.rot+=dt*2;gh.l-=dt*1.4;}
+    else if(gh.suck){if(paused||state!=='play')continue;gh.age+=dt;var sk=Math.min(1,gh.age/gh.dur),se=sk*sk;gh.x=gh.sx+(gh.hole.x-gh.sx)*se;gh.y=gh.sy+(gh.hole.y-gh.sy)*se;gh.r=gh.sr*(1-se*.92);gh.rot+=dt*9;if(sk>=1){gh.l=0;eatOrb(gh.hole,gh);}}
+    else gh.l-=dt*4.5;}
   ghosts=ghosts.filter(function(g){return g.l>0;});
   if(wash){wash.l-=dt*2.5;if(wash.l<=0)wash=null;}
 
@@ -1316,12 +1374,13 @@ function updateFx(dt){
     if(b.pop>=0){b.pop+=dt;b.scale=REDUCED?1:1-POP_OVERSHOOT*Math.exp(-b.pop*6)*Math.cos(b.pop*12);if(b.pop>1.2){b.pop=-1;b.scale=1;}}
     else b.scale+=(1-b.scale)*Math.min(1,dt*12);
   }
+  updateHole(dt); if(holeFlash>0)holeFlash=Math.max(0,holeFlash-dt*3);
   if(REDUCED)shown=score; else{shown+=(score-shown)*Math.min(1,dt*ROLL);if(Math.abs(score-shown)<.6)shown=score;}
   if(!bestShown&&startBest>0&&score>startBest){bestShown=true;floats.push({x:LW/2,y:BOX.y+120,txt:'New best',l:2.2,vy:-14,big:true,age:0});sfxBest();vib([8,30,12]);}
-  if(runMode==='rush'&&state==='play'&&!paused&&!rotated&&cur&&cur.ap>=1){clock-=realDt;if(clock<=0){clock=0;drop(aimX);}}   /* the shot clock runs on real time */
+  if(runMode==='rush'&&state==='play'&&!paused&&!rotated&&cur&&cur.ap>=1&&!holeOn()){clock-=realDt;if(clock<=0){clock=0;drop(aimX);}}   /* the shot clock runs on real time and waits for a black hole */
   if(state==='play'&&armed()&&tNow-lastTick>.25&&(warn>.45||(runMode==='rush'&&cur&&clockMax>0&&clock<.8))){lastTick=tNow;sfxTick();}
   if(cur&&cur.ap<1)cur.ap=Math.min(1,cur.ap+dt*6);
-  if(state==='play'&&!cur&&tNow>=canDropAt){cur={t:nxt.t,ap:0};nxt={t:roll()};clockMax=clockFor(score);clock=clockMax;}
+  if(state==='play'&&!cur&&tNow>=canDropAt){cur={t:nxt.t,ap:0};nxt={t:holesDue>0?(holesDue--,HOLE_T):roll()};clockMax=clockFor(score);clock=clockMax;}
   if(drops>0||save.games>0||save.best>0)hint=Math.max(0,hint-dt*2);
   if(dirty&&state==='play'&&tNow-lastFlush>2.5)flush();
 }
@@ -1407,7 +1466,23 @@ function buildSprites(){
     sc.lineWidth=Math.max(1.5,r*.06); sc.strokeStyle='rgba(0,0,0,.22)'; sc.stroke();
     SPR.push({c:c,h:h});
   }
+  var hr=HOLE_SR,hh=hr*1.6,hc=mkCanvas(hh*2*K,hh*2*K),hs=hc.getContext('2d'); hs.setTransform(K,0,0,K,hh*K,hh*K);   /* the black hole: a baked dark core and violet halo */
+  var hg=hs.createRadialGradient(0,0,hr*.15,0,0,hr*1.55); hg.addColorStop(0,'#000'); hg.addColorStop(.5,'#0d0718'); hg.addColorStop(.68,'#2a1650'); hg.addColorStop(.8,'rgba(139,107,255,.45)'); hg.addColorStop(1,'rgba(139,107,255,0)');
+  hs.fillStyle=hg; hs.beginPath(); hs.arc(0,0,hr*1.55,0,TAU); hs.fill();
+  HSPR={c:hc,h:hh};
 }
+function drawHoleAt(x,y,r,live){   /* the black hole: its baked core, then two accretion arcs turning, faster while it feeds */
+  ctx.save(); ctx.translate(x,y);
+  if(HSPR){var k=r/HOLE_SR;ctx.drawImage(HSPR.c,-HSPR.h*k,-HSPR.h*k,HSPR.h*2*k,HSPR.h*2*k);}
+  else{ctx.fillStyle='#07040f';ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fill();}
+  var a=REDUCED?0:tNow*(live?5:2.5);
+  ctx.lineWidth=Math.max(1.5,r*.12); ctx.lineCap='round';
+  ctx.strokeStyle='rgba(198,165,255,.75)'; ctx.beginPath(); ctx.arc(0,0,r*1.12,a,a+2.2); ctx.stroke();
+  ctx.strokeStyle='rgba(255,176,32,.55)'; ctx.beginPath(); ctx.arc(0,0,r*1.3,a+3.4,a+4.6); ctx.stroke();
+  ctx.restore();
+}
+function drawPiece(x,y,r,t,rot,b){ if(t===HOLE_T)drawHoleAt(x,y,r,!!(b&&b.phase==='feed')); else drawBall(x,y,r,t,rot,b); }
+function drawHoleFlash(){ if(holeFlash<=0)return; ctx.save(); boxPath(); ctx.clip(); ctx.globalAlpha=holeFlash*.85; ctx.fillStyle='#fff'; ctx.fillRect(BOX.x,BOX.y,BOX.w,BOX.h); ctx.restore(); ctx.globalAlpha=1; }
 function drawBox(){ ctx.drawImage(boxLayer,BOX.x-BOXM,BOX.y-BOXM,BOX.w+BOXM*2,BOX.h+BOXM*2); }
 
 /* ---------- identity: the wordmark (a brass orb for the O, then pixel letters) and the title moment ---------- */
@@ -1465,7 +1540,7 @@ function landingY(x,r){
 }
 function drawAim(){
   if(state!=='play'||!cur)return;
-  var T=TIERS[cur.t],r=T.r,x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,aimX)),ly=landingY(x,r);
+  var isH=cur.t===HOLE_T,T=isH?{r:HOLE_R0,c:'#c6a5ff'}:TIERS[cur.t],r=T.r,x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,aimX)),ly=landingY(x,r);
   var e=1-Math.pow(1-cur.ap,3);
   if(opt.aim){
     ctx.save(); ctx.globalAlpha=.22*e; ctx.strokeStyle=T.c; ctx.lineWidth=1.5; ctx.setLineDash([3,6]);
@@ -1475,7 +1550,7 @@ function drawAim(){
     ctx.restore();
   }
   var br=REDUCED?1:1+.025*Math.sin(tNow*4);   /* the held piece breathes */
-  drawBall(x,HOVER_Y,r*(.6+.4*e)*br,cur.t,0);
+  drawPiece(x,HOVER_Y,r*(.6+.4*e)*br,cur.t,0,null);
   if(runMode==='rush'&&clockMax>0){   /* the shot clock drains around the piece and turns coral for the last stretch */
     var f=Math.max(0,Math.min(1,clock/clockMax)),cr=r*(.6+.4*e)+7;
     ctx.save(); ctx.lineWidth=3; ctx.lineCap='round'; ctx.globalAlpha=.9*e; ctx.strokeStyle=f<.3?'#ff6b57':'#8fa59a';
@@ -1528,7 +1603,7 @@ function drawDanger(){   /* the orbs over the line get a coral outline that stre
 function drawGhosts(){   /* cleared orbs shrink out; a swept board falls away through the floor */
   if(!ghosts.length)return;
   ctx.save(); boxPath(); ctx.clip();
-  for(var i=0;i<ghosts.length;i++){var g=ghosts[i];ctx.globalAlpha=Math.max(0,Math.min(1,g.l));drawBall(g.x,g.y,g.fall?g.r:Math.max(.5,g.r*g.l*g.l),g.t,g.rot,null);}
+  for(var i=0;i<ghosts.length;i++){var g=ghosts[i];ctx.globalAlpha=Math.max(0,Math.min(1,g.l));drawPiece(g.x,g.y,(g.fall||g.suck)?g.r:Math.max(.5,g.r*g.l*g.l),g.t,g.rot,null);}
   ctx.restore(); ctx.globalAlpha=1;
 }
 function drawAmbient(){   /* the twinkling stars and the motes, clipped to the pocket, behind everything that plays */
@@ -1586,8 +1661,8 @@ function drawHUD(){
   if(runSeed){ctx.fillStyle='#8fa59a';ctx.font='600 12px '+FONT;ctx.fillText((runSeed===dailySeed()?'today ':'seed ')+runSeed,20,runMode==='rush'?118:100);}
   if(nxt){
     ctx.textAlign='right'; ctx.fillStyle='#8fa59a'; ctx.font='600 14px '+FONT; ctx.fillText('next',LW-20,36);
-    var pr=7+nxt.t*3.2; ctx.strokeStyle='rgba(184,149,90,.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(LW-44,70,25,0,TAU); ctx.stroke();
-    drawBall(LW-44,70,pr,nxt.t,0,null);
+    var pr=nxt.t===HOLE_T?13:7+nxt.t*3.2; ctx.strokeStyle='rgba(184,149,90,.4)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(LW-44,70,25,0,TAU); ctx.stroke();
+    drawPiece(LW-44,70,pr,nxt.t,0,null);
   }
   ctx.textAlign='center'; ctx.textBaseline='middle';   /* the help mark */
   ctx.fillStyle='rgba(11,25,21,.45)'; ctx.beginPath(); ctx.arc(HELP_X,HELP_Y,11,0,TAU); ctx.fill();
@@ -1603,8 +1678,8 @@ function render(){
   ctx.setTransform(dpr*scl,0,0,dpr*scl,dpr*(offX+sx*scl),dpr*(offY+sy*scl));
   drawBox(); drawAmbient(); drawWash(); drawLine(); drawHint(); drawAim();
   drawGhosts();
-  for(var i=0;i<balls.length;i++){var b=balls[i];drawBall(b.x,b.y,b.r*b.scale,b.t,b.rot,b);}
-  drawDanger(); drawDeath(); drawRings(); drawParts(); drawFloats(); drawHUD(); drawMenuMark();
+  for(var i=0;i<balls.length;i++){var b=balls[i];drawPiece(b.x,b.y,b.r*b.scale,b.t,b.rot,b);}
+  drawDanger(); drawHoleFlash(); drawDeath(); drawRings(); drawParts(); drawFloats(); drawHUD(); drawMenuMark();
 }
 
 /* ---------- layout & input ---------- */

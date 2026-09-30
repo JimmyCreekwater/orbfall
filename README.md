@@ -20,7 +20,9 @@ the pause button. Challenge shares a link with the seed; whoever opens it plays 
 board's Seed and Today tabs under Online ranking show everyone's best on that seed. Where there is no share sheet,
 Share and Challenge show the text with a Copy button. At game over, Rescue this run offers Undo 1 (free
 once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets two rescues, then the
-button is struck through; runs finished without any rescue wear a ✦ on the board.
+button is struck through; runs finished without any rescue wear a ✦ on the board. Every 5,000 points the
+next piece is a black hole: drop it and it swallows the board one orb at a time, scoring each, then bursts.
+The ? on the play screen opens the rules and the merge ladder.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
 Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cached by `sw.js`,

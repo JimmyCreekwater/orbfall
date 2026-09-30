@@ -104,6 +104,7 @@ window.__wm=function(){return WM;};window.__wmSvg=wordmarkSVG;
 window.__pieces=function(s,n){var a=[];for(var i=0;i<n;i++)a.push(pieceAt(s,i));return a;};
 window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date.UTC(+p[0],+p[1]-1,+p[2])));};
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
+window.__score=function(v){score=v;shown=v;};
 window.__setSeed=function(s){activeSeed=s;};
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};
@@ -126,6 +127,8 @@ window.__dbg=function(){
     cid:save.cid,sent:JSON.parse(JSON.stringify(save.sent)),onlineOn:onlineOn(),filter:filter,
     homeOn:homeOn,pauseOn:pauseOn,playLabel:playBtn.textContent,newRunShown:newRunBtn.classList.contains('show'),todayLabel:todayBtn.textContent,scl:scl,offX:offX,offY:offY,
     helpOn:helpOn,ladder:(ladderEl.innerHTML.match(/<li>/g)||[]).length,helpX:HELP_X,helpY:HELP_Y,
+    hole:(function(){for(var i=0;i<balls.length;i++)if(balls[i].hole)return {phase:balls[i].phase,r:Math.round(balls[i].tr),eaten:balls[i].eaten};return null;})(),
+    holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     nameOn:nameOn,nameWarn:nameWarnEl.textContent,seedBoxOn:seedBoxOn,seedIn:seedInEl.value,shareOn:shareOn,shareText:shareTextEl.value,viewSeed:viewSeed,drift:drift.length,
     rescueLeft:rescueLeft(),rescueBtn:reviveBtn.textContent+(reviveBtn.disabled?'(off)':''),rescueCap:rescueCapEl.textContent,rescueNote:rescueNoteEl.textContent,
     seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,

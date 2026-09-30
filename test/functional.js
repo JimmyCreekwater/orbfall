@@ -547,5 +547,44 @@ async function playToGameOver(g) {
   g.fire('win:keydown', { key: 'h' }); check(g.dbg().helpOn, 'h on a keyboard opens it');
   g.fire('win:keydown', { key: 'Escape' }); check(!g.dbg().helpOn && !g.dbg().pauseOn, 'Escape closes it without opening the pause sheet');
 
+  // the black hole: every 5,000 points the next piece is a black hole that eats the board and bursts
+  const bh = new Map();
+  g = boot(bh); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  for (let d = 0; d < 8; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  for (let k = 0; k < 60; k++) g.step(16.67);
+  g.window.__score(4999); g.window.__chain(); g.step(16.67); q = g.dbg();
+  check(q.score >= 5000 && q.nxtT === -1 && q.holesDue === 0 && q.floats.some(t => t === 'Black hole next'), 'crossing 5,000 makes the next piece a black hole');
+  g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67); q = g.dbg();
+  check(q.curT === -1 && q.nxtT >= 0, 'it comes into the hand after the piece in play, with a normal piece behind it');
+  const orbs = q.n, sc0 = q.score;
+  g.tap(180); for (let k = 0; k < 6; k++) g.step(16.67); q = g.dbg();
+  check(q.hole && q.hole.phase === 'fall' && q.n === orbs + 1 && q.drops === 10, 'dropped, it falls like an orb');
+  g.tap(120); g.step(16.67); check(g.dbg().drops === 10, 'nothing else drops while it is on the board');
+  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
+  const liveHole = JSON.parse(bh.get('orbfall_v2')).live, bhCopy = new Map(bh);
+  check(liveHole && liveHole.b.some(a => a[4] === -1 && a.length === 7), 'the live save carries the black hole');
+  g.document.hidden = false;
+  let fed = 0, maxSuck = 0, warned = false;
+  for (let k = 0; k < 1200 && g.dbg().hole; k++) { g.step(16.67); const qq = g.dbg(); if (qq.hole && qq.hole.phase === 'feed') fed++; if (qq.sucking > maxSuck) maxSuck = qq.sucking; if (qq.warn > 0) warned = true; }
+  for (let k = 0; k < 30; k++) g.step(16.67); q = g.dbg();
+  check(fed > 20 && !q.hole && q.n === 0 && q.state === 'play' && maxSuck >= 1, 'landed, it wakes, pulls the orbs in one by one and bursts, leaving an empty board (' + fed + ' frames feeding)');
+  check(q.score > sc0 && q.floats.some(t => t === 'Board cleared') && !warned, 'every orb eaten scored, the burst is announced, and the line never threatened');
+  g.fire('undo:click'); g.step(16.67); q = g.dbg();
+  check(q.n === orbs && q.curT === -1 && q.score === sc0 && q.sucking === 0, 'undo brings the board and the black hole in the hand back');
+  g = boot(bhCopy); await settle(); g.step(16.67); q = g.dbg();   // the save as it was when the app was hidden, hole on the board
+  check(q.hole && q.hole.phase === 'fall' && q.n === orbs + 1, 'a restored run gets its black hole back and it carries on');
+  const sd2 = new Map();
+  g = boot(sd2); await settle(); g.window.__setSeed('K7Q2ZD'); g.reset(); for (let k = 0; k < 15; k++) g.step(16.67);
+  const P2 = g.window.__pieces('K7Q2ZD', 3);
+  g.window.__score(4999); g.window.__chain(); g.step(16.67); q = g.dbg();
+  check(q.nxtT === -1 && q.seqN === 1 && q.curT === P2[0], 'on a seed the displaced piece is handed back to the sequence');
+  g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67); q = g.dbg();
+  check(q.curT === -1 && q.nxtT === P2[1] && q.seqN === 2, 'the hole is dealt and the displaced piece follows it, so the seed stays in step');
+  g = boot(new Map(), { reduced: true }); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  for (let d = 0; d < 5; d++) { g.tap(60 + d * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  g.window.__score(4999); g.window.__chain(); g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67); g.tap(180);
+  maxSuck = 0; for (let k = 0; k < 900 && g.dbg().hole; k++) { g.step(16.67); if (g.dbg().sucking > maxSuck) maxSuck = g.dbg().sucking; }
+  check(!g.dbg().hole && g.dbg().n === 0 && maxSuck === 0 && g.dbg().holeFlash === 0, 'under reduced motion it still clears the board, without the pull or the flash');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });
