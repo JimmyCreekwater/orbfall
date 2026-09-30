@@ -105,6 +105,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .nm.wide{width:100%;text-align:center;font-size:18px;letter-spacing:.08em;margin:6px 0 12px}
 textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-weight:600;letter-spacing:0;line-height:1.35}
 .warn{color:var(--coral);font-size:13px;font-weight:600;min-height:18px;margin:-6px 0 10px}
+.keep{display:none;color:var(--gold);font-size:13px;font-weight:600;line-height:1.35;margin:-4px 0 12px}
+.keep.show{display:block}
 .sec.rescue.used{text-decoration:line-through;opacity:.45;color:var(--sage)}
 .rescuecap{color:var(--sage);font-size:12px;font-weight:600;margin:-4px 0 10px}
 .sec:active:not(:disabled),#bar button:active:not(:disabled),.chips button:active,.sh button:active{transform:scale(.96)}
@@ -291,6 +293,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     <div class="wm" id="wmname" role="img" aria-label="Orbfall"></div>
     <h1 id="nameh">What should we call you?</h1>
     <p class="best">Up to 12 letters. It goes on the boards.</p>
+    <p class="keep" id="namekeep"></p>
     <input class="nm wide" id="namein" type="text" maxlength="12" autocomplete="nickname" spellcheck="false" aria-label="Your name">
     <div class="warn" id="namewarn"></div>
     <button id="namego" type="button">Let's go</button>
@@ -333,7 +336,8 @@ var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pau
 var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seedRandomBtn=$('seedrandom'),seedGoBtn=$('seedgo'),seedBackBtn=$('seedback');
 var shareBoxEl=$('sharebox'),shareTextEl=$('sharetext'),shareCopyBtn=$('sharecopy'),shareDoneBtn=$('sharedone');
 var nameBoxEl=$('namebox'),nameInEl=$('namein'),nameWarnEl=$('namewarn'),nameGoBtn=$('namego'),wmNameEl=$('wmname'),rescueNoteEl=$('rescuenote'),rescueCapEl=$('rescuecap');
-var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;   // the help legend behind the HUD's question mark
+var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;
+var nameKeepEl=$('namekeep');   // the help legend behind the HUD's question mark
 var TAU=Math.PI*2;
 var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
@@ -1072,7 +1076,17 @@ function closeSeedBox(){ seedBoxOn=false; seedBoxEl.classList.remove('show'); up
 function openShareBox(text){ shareOn=true; shareTextEl.value=text; shareBoxEl.classList.add('show'); updatePause(); }
 function closeShareBox(){ shareOn=false; shareBoxEl.classList.remove('show'); updatePause(); }
 function nameSet(){ return cleanName(opt.name).length>0&&nameOK(opt.name); }
-function openNameBox(next){ nameOn=true; nameNext=next||null; nameInEl.value=opt.name||''; nameWarnEl.textContent=''; nameBoxEl.classList.add('show'); updatePause(); }
+/* Why a name can fail to stick, said on the gate itself: a browser that blocks site storage (Safari's "Block all
+   cookies" leaves only the memory store), or a link opened inside another app's browser, which keeps its own
+   storage apart from the real browser and the home-screen app. Nothing in the game can bridge those; the hint is
+   the fix. */
+function inApp(){ return /FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|TikTok|musical_ly|Bytedance|Twitter|; wv\)/i.test(navigator.userAgent||''); }
+function keepHint(){
+  if(store.kind==='memory')return 'This browser is blocking site storage, so the name and scores cannot be kept between plays. Allow cookies for this site, or add the game to the home screen.';
+  if(inApp())return 'Opened inside another app? Its browser keeps nothing. Open the game in your real browser, or add it to the home screen, to keep your name and scores.';
+  return '';
+}
+function openNameBox(next){ nameOn=true; nameNext=next||null; nameInEl.value=opt.name||''; nameWarnEl.textContent=''; var kh=keepHint(); nameKeepEl.textContent=kh; nameKeepEl.classList.toggle('show',!!kh); nameBoxEl.classList.add('show'); updatePause(); }
 function closeNameBox(){ nameOn=false; nameBoxEl.classList.remove('show'); updatePause(); var nx=nameNext; nameNext=null; if(nx==='home')openHome(); }
 
 /* ---------- home menu and pause sheet ---------- */

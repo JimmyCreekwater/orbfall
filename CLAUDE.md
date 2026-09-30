@@ -238,6 +238,13 @@ toast. `server/worker.js` carries identical lists and answers 400 to a failing n
 The harness boots past the gate (`__skipName`, set alongside `__skipHome`, and for `home: true` tests
 unless they pass `nameGate: true`).
 
+The name does persist between plays in one browser (checked live 2026-09-29: gate, reload, menu). It is lost
+only where the storage is a different one: a home-screen app on iOS (its own sandbox), a link opened inside
+another app's browser, a private tab, or Safari's seven-day wipe of script storage for sites not on the home
+screen. The gate says so where it can tell (`keepHint()`): the memory-only store (a browser blocking site
+storage) and the in-app browsers with a telling user agent (`inApp()`); iOS's in-app Safari view is
+indistinguishable and gets no hint.
+
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
 (`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens

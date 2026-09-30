@@ -481,6 +481,11 @@ async function playToGameOver(g) {
   check(!q.nameOn && q.homeOn && q.opt.name === 'Glass' && JSON.parse(nb.get('orbfall_v2')).opt.name === 'Glass', 'Glass passes, is saved, and the menu opens');
   g = boot(nb, { home: true, nameGate: true, location: { hash: '', protocol: 'https:', href: 'https://orb.test/', pathname: '/', search: '' } }); await settle(); g.step(16.67);
   check(!g.dbg().nameOn && g.dbg().homeOn, 'a later launch with a name goes straight to the menu');
+  check(!g.els.namekeep.classList.contains('show'), 'in an ordinary browser the gate carries no storage warning');
+  const nk = boot(new Map(), { home: true, nameGate: true, storage: false, localStorage: new Map(), localStorageThrows: true }); await settle(); nk.step(16.67);
+  check(nk.dbg().nameOn && nk.dbg().store === 'memory' && nk.els.namekeep.classList.contains('show') && nk.els.namekeep.textContent.indexOf('blocking site storage') > 0, 'with storage blocked the gate says the name cannot be kept');
+  const ia = boot(new Map(), { home: true, nameGate: true }); ia.navigator.userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) Instagram 400.0'; await settle(); ia.step(16.67);
+  check(ia.dbg().nameOn && ia.els.namekeep.classList.contains('show') && ia.els.namekeep.textContent.indexOf('inside another app') > 0, 'inside another app’s browser the gate says to open the real browser');
 
   // seeds by hand: the box opens on today, Random makes a code, typed seeds are cleaned, and the run plays it
   const daily2 = g.window.__daily(new Date().getUTCFullYear() + '-' + (new Date().getUTCMonth() + 1) + '-' + new Date().getUTCDate());
