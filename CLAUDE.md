@@ -47,6 +47,13 @@ rescue chooser beside the undo code.
 - 11 tiers (Mote … Sun). Two touching orbs of the same tier merge into the next tier at their
   midpoint. Score for a merge = triangular number of the *pair's* tier: 1, 3, 6, 10 … 66.
   Sun + Sun vanish for +200. Merges within 0.9 s of each other chain: bonus = base × 0.5 × (n−1).
+- Triples (shipped 2026-10-15, a playtester's idea): when a same-size pair is found and a third orb of
+  that size touches either of them (resting contact counts, 1 px slack, `touching()`), all three merge at
+  their centroid into the size two up (three Novas make a Sun), scoring double the next pair's points,
+  2 × pts(t+1): 6 for three Motes, 132 for three Novas. Three Suns vanish for +300. A "triple" caption and
+  a big burst mark it. Measured over 20 seeded random-play runs each way: the same reach (top tier 8, no
+  Sun) and an average of 1,789 before against 1,668 after, so triples reward deliberate placement (a
+  third dropped between two that rest apart), not luck.
 - Spawns are tiers 0–4 with weights `SPAWN_W=[28,26,20,15,11]`. Drop cooldown 0.42 s.
 - Loss: an orb older than 0.7 s whose top is above `LINE_Y` for more than 1.0 s continuous.
   The owner said the loss "was visible 30 s ahead" — that legibility is intentional; keep it.
@@ -65,7 +72,11 @@ over ~10 steps (`b.r` → `b.tr`) so neighbours are pushed gradually. Rotation i
 World is 360×676 logical units, letterboxed to the viewport; box interior is 336×476.
 The merge branch of `physStep` is also where the effect hooks live (`addScore`, `fx`, `sfxMerge`,
 `vib`, `ghost`, `reveal`, and a born orb's pop and flash fields); those lines are effects, not
-physics, and the integration and constraint code is unchanged from the original build.
+physics, and the integration and constraint code is unchanged from the original build. The triple scan
+(once a same-size pair is found, a read-only pass for a third touching either) sits in the pair loop and
+moves nothing; a triple's orb starts at the parents' radius and grows two sizes through the usual `b.tr`.
+Re-measured 2026-10-15 over 20 seeds: two "no velocity blow-ups" failures with the old rules and two with
+triples, the same flake at the same rate.
 
 Known intermittent test failure (seen 2026-09-24; pre-existing, the simulation was untouched
 by the storage/PWA/revive work): `test/physics.js` fails "no velocity blow-ups" in roughly one

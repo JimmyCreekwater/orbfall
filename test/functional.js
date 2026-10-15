@@ -586,5 +586,22 @@ async function playToGameOver(g) {
   maxSuck = 0; for (let k = 0; k < 900 && g.dbg().hole; k++) { g.step(16.67); if (g.dbg().sucking > maxSuck) maxSuck = g.dbg().sucking; }
   check(!g.dbg().hole && g.dbg().n === 0 && maxSuck === 0 && g.dbg().holeFlash === 0, 'under reduced motion it still clears the board, without the pull or the flash');
 
+  // triples: three of a kind touching at once make the size two up, for double the next pair's points
+  g = boot(new Map()); await settle(); g.step(16.67);
+  const F = g.dbg().FLOOR;
+  g.window.__place(100, F - 15, 0); g.window.__place(140, F - 15, 0); g.step(16.67); q = g.dbg();
+  check(q.n === 2 && q.score === 0, 'two Motes resting apart do not merge');
+  g.window.__place(120, F - 15 - 21, 0); for (let k = 0; k < 3; k++) g.step(16.67); q = g.dbg();
+  check(q.n === 1 && q.tiers[0] === 2 && q.score === 6 && q.floats.some(t => t === 'triple') && q.tier === 2, 'a third Mote touching both makes a Bead at once, for double the Pip pair (' + q.score + ')');
+  for (let k = 0; k < 80; k++) g.step(16.67);   // let the chain window close and the triple caption fade
+  g.window.__place(220, F - 15, 0); g.window.__place(248, F - 15, 0); for (let k = 0; k < 3; k++) g.step(16.67); q = g.dbg();
+  check(q.n === 2 && q.tiers.indexOf(1) >= 0 && q.score === 7 && !q.floats.some(t => t === 'triple'), 'a plain pair still makes a Pip for one point');
+  g = boot(new Map()); await settle(); g.step(16.67);
+  g.window.__place(130, 350, 9); g.window.__place(230, 350, 9); g.window.__place(180, 270, 9); g.step(16.67); q = g.dbg();
+  check(q.n === 1 && q.tiers[0] === 10 && q.score === 132 && q.tier === 10, 'three Novas make a Sun and score double the Sun pair (' + q.score + ')');
+  g = boot(new Map()); await settle(); g.step(16.67);
+  g.window.__place(130, 380, 10); g.window.__place(230, 380, 10); g.window.__place(180, 300, 10); g.step(16.67); q = g.dbg();
+  check(q.n === 0 && q.score === 300, 'three Suns vanish for 300 (' + q.score + ')');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

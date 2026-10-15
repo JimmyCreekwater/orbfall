@@ -3,7 +3,7 @@
 A single-file, one-thumb merge-drop game for mobile browsers: an orrery on a card table, with
 celestial orbs falling through a night-sky pocket framed in brass. Open `index.html` on a phone
 (or serve the folder and open it on one) and play. Drag to aim, release to drop; two of a kind
-merge; stack past the line and the run ends. One revive per run clears the smallest orbs and
+merge, and three touching at once skip a size; stack past the line and the run ends. One revive per run clears the smallest orbs and
 lets you carry on.
 
 ## Run

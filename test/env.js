@@ -105,6 +105,7 @@ window.__pieces=function(s,n){var a=[];for(var i=0;i<n;i++)a.push(pieceAt(s,i));
 window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date.UTC(+p[0],+p[1]-1,+p[2])));};
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
+window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
 window.__setSeed=function(s){activeSeed=s;};
 var __origRender=render;window.__breakRender=function(){render=function(){throw new Error('boom');};};window.__fixRender=function(){render=__origRender;};
 window.__music=musicEvents;window.__musicLayers=musicLayers;window.__L={bass:L_BASS,drums:L_DRUMS,lead:L_LEAD,arp:L_ARP,tense:L_TENSE};

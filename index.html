@@ -224,7 +224,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 <div id="help" class="veil" role="dialog" aria-modal="true" aria-labelledby="helph">
   <div class="card help">
     <h1 id="helph">How it works</h1>
-    <p class="best">Drop an orb. Two of a kind touching merge into the next size, and merges within a second of each other chain for a bonus. Stack past the line for a second and the run ends.</p>
+    <p class="best">Drop an orb. Two of a kind touching merge into the next size; three touching at once skip a size and score double. Merges within a second of each other chain for a bonus. Stack past the line for a second and the run ends.</p>
     <ol class="ladder" id="ladder" aria-label="What two of each size make"></ol>
     <p class="best">Every 5,000 points the next piece is a black hole: drop it and it eats the whole board, scoring every orb. Rush drops the piece when its clock runs out. Undo and the rescues at game over mark the run on the board; a run without them earns ✦.</p>
     <button class="sec rescue" id="helpok" type="button">Got it</button>
@@ -1279,6 +1279,7 @@ function updateInstall(){   /* after two finished runs: the Android prompt if th
 }
 
 /* ---------- simulation: fixed-step Verlet, mass-weighted overlap resolution ---------- */
+function touching(p,q){var dx=q.x-p.x,dy=q.y-p.y,rr=p.r+q.r+1;return dx*dx+dy*dy<rr*rr;}   /* resting contact counts, hence the slack */
 function physStep(){
   var gg=G*DT*DT,i,j,b,a;
   for(i=0;i<balls.length;i++){
@@ -1298,7 +1299,10 @@ function physStep(){
         var dx=b.x-a.x,dy=b.y-a.y,rr=a.r+b.r;
         if(dx>rr||dx<-rr||dy>rr||dy<-rr)continue;
         var d2=dx*dx+dy*dy; if(d2>=rr*rr)continue;
-        if(a.t===b.t&&a.t>=0){a.dead=true;b.dead=true;merges.push([a,b]);break;}
+        if(a.t===b.t&&a.t>=0){a.dead=true;b.dead=true;
+          var c3=null; for(var k=0;k<n;k++){var q3=balls[k];if(q3.dead||q3.t!==a.t)continue;if(touching(q3,a)||touching(q3,b)){c3=q3;break;}}   /* a third of a kind touching either one makes a triple */
+          if(c3){c3.dead=true;merges.push([a,b,c3]);}else merges.push([a,b]);
+          break;}
         var d=Math.sqrt(d2),nx,ny;
         if(d<1e-6){nx=1;ny=0;d=1e-6;}else{nx=dx/d;ny=dy/d;}
         var ov=rr-d,ma=a.r*a.r,mb=b.r*b.r,inv=1/(ma+mb),ka=mb*inv,kb=ma*inv;
@@ -1319,17 +1323,19 @@ function physStep(){
   }
   if(merges.length){
     for(i=0;i<merges.length;i++){
-      a=merges[i][0]; b=merges[i][1];
-      var t=a.t,x=(a.x+b.x)/2,y=(a.y+b.y)/2;
+      var m=merges[i],c=m[2]||null; a=m[0]; b=m[1];
+      var t=a.t,x=c?(a.x+b.x+c.x)/3:(a.x+b.x)/2,y=c?(a.y+b.y+c.y)/3:(a.y+b.y)/2;
       if(t===MAXT){
-        ghost(a); ghost(b);
-        addScore(200,x,y-20,true,MAXT); fx(x,y,t,true); sfxMerge(t+2,combo); vib([20,40,30]);
+        ghost(a); ghost(b); if(c)ghost(c);
+        addScore(c?300:200,x,y-20,true,MAXT); fx(x,y,t,true); sfxMerge(t+2,combo); vib([20,40,30]);
       }else{
-        var nb=mk(x,y,t+1); nb.r=TIERS[t].r; nb.pop=0; nb.flash=1; nb.scale=REDUCED?1:1-POP_OVERSHOOT;
+        var to=c?Math.min(MAXT,t+2):t+1,base=c?2*pts(t+1):pts(t);   /* a triple skips a size and scores double the next pair */
+        var nb=mk(x,y,to); nb.r=TIERS[t].r; nb.pop=0; nb.flash=1; nb.scale=REDUCED?1:1-POP_OVERSHOOT;
         nb.x=Math.max(BOX.x+nb.tr,Math.min(BOX.x+BOX.w-nb.tr,nb.x)); if(nb.y+nb.tr>FLOOR)nb.y=FLOOR-nb.tr;
         nb.px=nb.x; nb.py=nb.y+2.2; balls.push(nb);
-        if(t+1>runBestTier){runBestTier=t+1;reveal(t+1,x,y);}
-        addScore(pts(t),x,y,false,t+1); fx(x,y,t+1,false); sfxMerge(t+1,combo); vib(t>=7?[12,40,18]:6+t*2);
+        if(to>runBestTier){runBestTier=to;reveal(to,x,y);}
+        addScore(base,x,y,!!c,to); fx(x,y,to,!!c); sfxMerge(to,combo); vib(t>=7||c?[12,40,18]:6+t*2);
+        if(c)floats.push({x:x,y:y+22,txt:'triple',l:1.1,vy:-30,small:true,col:'#ffb020',age:0});
       }
     }
     balls=balls.filter(function(q){return !q.dead;});
