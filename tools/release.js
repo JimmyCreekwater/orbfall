@@ -30,6 +30,9 @@ pkg.version = version; fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + 
 const swPath = path.join(root, 'sw.js'); let sw = fs.readFileSync(swPath, 'utf8');
 if (!/var CACHE='[^']*';/.test(sw)) { console.error('sw.js: could not find the CACHE line'); process.exit(1); }
 sw = sw.replace(/var CACHE='[^']*';/, `var CACHE='orbfall-shell-${version}';`); fs.writeFileSync(swPath, sw);
+const pagePath = path.join(root, 'index.html'); let page = fs.readFileSync(pagePath, 'utf8');   // the page names its own build (settings shows it)
+if (!/var VERSION='[^']*';/.test(page)) { console.error('index.html: could not find the VERSION line'); process.exit(1); }
+fs.writeFileSync(pagePath, page.replace(/var VERSION='[^']*';/, `var VERSION='${version}';`));
 console.log(`version ${version}; cache name orbfall-shell-${version}; running the tests...`);
 
 const r = cp.spawnSync('npm test', { cwd: root, stdio: 'inherit', shell: true });

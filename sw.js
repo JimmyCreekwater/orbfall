@@ -1,9 +1,10 @@
 /* Orbfall service worker: cache-first app shell.
    Bump CACHE with every shipped change to index.html (or anything in SHELL). Installed players only receive a new
-   build when this file changes; the previous cache is deleted on activate, and skipWaiting + clients.claim mean the
-   next launch is the new build. There is deliberately no forced reload, so an update never interrupts a run. */
+   build when this file changes; the previous cache is deleted on activate, and skipWaiting + clients.claim hand the
+   open page to the new worker. The page then reloads itself only where that costs nothing (the home menu; see
+   applyUpdate in index.html), so an update never interrupts a run, and otherwise shows at the next launch. */
 'use strict';
-var CACHE='orbfall-shell-0.19.0';
+var CACHE='orbfall-shell-0.20.0';
 var SHELL=['./','manifest.webmanifest','privacy.html','icons/icon-192.png','icons/icon-512.png',
   'icons/maskable-192.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
 

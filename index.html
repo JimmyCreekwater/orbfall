@@ -92,6 +92,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 #rwgo.show{display:block}
 #rwno{width:100%}
 .plink{display:block;margin-top:10px;padding:8px;color:var(--sage);font-size:13px;font-weight:600;text-align:center;text-decoration:underline}
+.ver{color:var(--sage);opacity:.65;font-size:12px;font-weight:600;text-align:center;margin-top:12px}
+.opt .row.pv{flex:0 0 auto;flex-direction:column;gap:6px;margin-top:0}
 .wm.big{height:34px;margin-bottom:14px}
 .wm.big svg{height:34px}
 .tag{color:var(--sage);font-size:14px;line-height:1.35;margin-bottom:18px}
@@ -270,9 +272,10 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
   <ol class="rows" id="rows"></ol>
 </div>
 <div id="opts" role="dialog" aria-label="Settings">
-  <div class="sh"><h2>Settings</h2><button id="optsclose" type="button">Done</button></div>
+  <div class="sh"><h2 id="optsh">Settings</h2><button id="optsclose" type="button">Done</button></div>
   <div class="optlist" id="optlist"></div>
   <a class="plink" id="privacy" href="privacy.html" target="_blank" rel="noopener" style="display:none">Privacy</a>
+  <div class="ver" id="ver"></div>
 </div>
 <div id="rotate" class="veil" role="alertdialog" aria-labelledby="roth">
   <div class="card">
@@ -351,6 +354,7 @@ var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optLi
 var adboxEl=$('rwbox'),adnEl=$('rwn'),adcancelBtn=$('rwno'),adhEl=$('rwh'),adpEl=$('rwp'),adWatchBtn=$('rwgo'),faultEl=$('fault'),faultBtn=$('faultbtn');
 var rotateEl=$('rotate'),shareBtn=$('send'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok'),wmEl=$('wm'),challengeBtn=$('challenge');
 var homeEl=$('home'),playBtn=$('play'),newRunBtn=$('newrun'),modesHomeEl=$('modeshome'),todayBtn=$('today'),homeScoresBtn=$('homescores'),homeSettingsBtn=$('homesettings'),homeChallengeBtn=$('homechallenge'),orEl=$('orrery'),orCapEl=$('orcap'),octx=orEl.getContext?orEl.getContext('2d'):null;
+var optsTitleEl=$('optsh'),verEl=$('ver');
 var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pauseSettingsBtn=$('pausesettings'),restartBtn=$('restart'),pauseHomeBtn=$('pausehome'),home2Btn=$('home2'),wmHomeEl=$('wmhome'),wmPauseEl=$('wmpause');
 var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seedRandomBtn=$('seedrandom'),seedGoBtn=$('seedgo'),seedBackBtn=$('seedback');
 var shareBoxEl=$('sendbox'),shareTextEl=$('sendtext'),shareCopyBtn=$('sendcopy'),shareDoneBtn=$('senddone'),sendImgEl=$('sendimg'),sendSaveEl=$('sendsave');
@@ -362,6 +366,7 @@ var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: re
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
 
 /* ---------- tuning knobs ---------- */
+var VERSION='0.20.0';      // the build: written here by tools/release.js, shown at the foot of the settings sheet
 var UNDO_FREE_PER_RUN=1;   // free undos each run; after that the reward hook gates it
 var AD_STUB_SECONDS=3;     // length of the placeholder "ad" until a real SDK is wired in
 var AD_STUB={undo:3,undo5:5,undo10:5,revive:4};   // placeholder seconds per placement; undo 10 costs two of them
@@ -399,6 +404,7 @@ var HIT=[0,0,0,0,0,.03,.045,.06,.08,.1,.15];   // weight: seconds the world hold
 var PUNCH=.0032,PUNCH_MAX=.03;   // the camera punches in by this much per tier above Marble, as a fraction of the view, up to the cap
 var WAVE_FROM=5;           // from this tier a merge sends a ripple through the sky
 var ROOM=1.6;              // sound: how loudly the room answers (measured: a merge's tail sits about 18 dB under the note); 0 is a dry game
+var DROP_JIT=1.2;           // a dropped piece lands up to half this far (logical px) to one side of the aim, alternating, so pieces dropped on one spot topple instead of balancing in a tower
 var HOLE_EVERY=5000;       // every this many points of the run, the next piece is a black hole that eats the board
 var HOLE_R0=15,HOLE_GROW=1.4,HOLE_RMAX=70;   // a black hole's radius when dropped, its growth per orb eaten, its cap
 var HOLE_PULL=.3,HOLE_PULL_K=.9;   // seconds per orb pulled in at first, shrinking by this factor with every orb
@@ -455,6 +461,8 @@ var holesDue=0,holeFlash=0,holeAt=null;   // black holes owed beyond the one in 
 var scene=null,drone=null;   // a set piece in progress (the first Sun of a run); the black hole's voice
 var HOLE_BIT=TIERS.length,FOUND_N=TIERS.length+1,FOUND_ALL=(1<<(TIERS.length+1))-1;   // the orrery: the eleven sizes and the black hole, one bit each in save.found
 var shot=null;   // the picture of the finished run: {blob, file, url, name}, made when the game-over card appears
+var demo=false,pvRowEl=null,pvTaps=0,pvAt=0;   // a preview run (nothing in it is kept); the hidden previews row and the taps that reveal it
+var updateReady=false;      // a new build has taken over the page and waits for a moment that costs nothing
 var fear=false,shotting=false;   // faces: a black hole is feeding; the share picture is being painted (it shows the board as it was, not glum)
 var runFound=[],foundKnown=false,orr=false,orSeen=0,orFresh=0,orAt=0;   // found for the first time this run; the save carried a record; the orrery is being drawn; what it last showed, what is new since, and when it opened
 var hitT=0,cam={z:0,v:0,x:LW/2,y:BOX.y+BOX.h/2},waves=[],rpx=0,rpy=0;   // weight: the hold left to run; the camera's punch (zoom, its speed, where it centres); ripples; a rippled point
@@ -568,7 +576,7 @@ function seedFound(){
   return f;
 }
 function find(i){   /* true when this body has never been made before */
-  if(!loaded||foundHas(i))return false;
+  if(!loaded||demo||foundHas(i))return false;
   save.found|=1<<i; runFound.push(i); dirty=true;
   if(save.found===FOUND_ALL){toast('Your orrery is complete');sfxBest();}
   return true;
@@ -588,6 +596,7 @@ function applyLoaded(){
   orSeen=save.found;
   if(!window.__skipHome){ if(!nameSet()&&!window.__skipName)openNameBox(link?'play':'home'); else if(!link)openHome(); }   /* a name first, then the menu; a challenge link goes straight in */
   updateBar(); applyOpts(); adsInit();
+  var pv=/[?&]preview=(sun|hole)(?:&|$)/.exec((window.location&&window.location.search)||''); if(pv&&!link&&nameSet())startPreview(pv[1]);
 }
 function load(){
   store.get(KEY).then(function(v){
@@ -607,7 +616,7 @@ function liveState(){
     s:score,n:nxt?nxt.t:null,c:cur?cur.t:null,bt:runBestTier,d:drops,u:undosUsed,uf:undosFree,v:revivesUsed,m:runMode,sd:runSeed,q:seqN,x5:used5?1:0,x10:used10?1:0,rs:rescuesUsed};
 }
 function flush(){
-  dirty=false; lastFlush=tNow;
+  dirty=false; lastFlush=tNow; if(demo)return;   /* a preview is never the run in progress */
   save.live=liveState(); persist();
 }
 function restoreLive(L){
@@ -909,7 +918,7 @@ function mCadence(){   /* game over: a soft A minor to E, the track's own full s
 function drop(x){
   if(state!=='play'||paused||rotated||!cur||tNow<canDropAt||holeOn()||sceneHold())return;
   var t=cur.t,r=t===HOLE_T?HOLE_R0:TIERS[t].r;
-  x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,x));
+  x=Math.max(BOX.x+r,Math.min(BOX.x+BOX.w-r,x+((drops*.6180339887)%1-.5)*DROP_JIT));   /* never dead centre on the last one: no hand is that steady, and a ball cannot balance on a ball */
   snaps.push({b:balls.map(copy),s:score,co:combo,lm:lastMerge,bt:runBestTier,d:drops,n:nxt.t,c:t,q:seqN,hd:holesDue}); if(snaps.length>SNAPS_KEEP)snaps.shift();
   balls.push(t===HOLE_T?mkHole(x,HOVER_Y):mk(x,HOVER_Y,t)); if(t>=0)find(t);
   cur=null; canDropAt=tNow+.42; drops++; dirty=true;
@@ -1103,6 +1112,22 @@ function sceneStep(dt){   /* advances the set piece on real time and returns the
   if(s.t>=SUN_LIFE)scene=null;
   return dt;
 }
+/* Previews (hidden: five taps on the settings title show the row; ?preview=sun or ?preview=hole in the address
+   starts one). A staged run that shows a set piece without earning it: the board is laid out and the piece that
+   starts it is put in the hand. Nothing in a preview is kept (demo): no record, no saved run, no discovery, no
+   picture, and when it ends the menu comes back. Starting one gives up a run in progress. */
+function startPreview(kind){
+  if(optsOpen())closeOpts(); if(boardOpen())closeBoard(); closePause();
+  activeSeed=null; reset(); demo=true; closeHome();
+  var F=FLOOR,i,b,
+      sun=[[104,F-92,9],[232,F-15,0],[264,F-20,1],[310,F-27,2],[300,F-96,3]],
+      hole=[[60,F-36,3],[130,F-41,5],[250,F-56,6],[320,F-26,1],[70,F-116,2],[180,F-136,4],[300,F-146,0],[110,F-196,7],[250,F-216,3],[320,F-196,2]],
+      set=kind==='hole'?hole:sun;
+  for(i=0;i<set.length;i++){b=mk(set[i][0],set[i][1],set[i][2]);b.age=1;balls.push(b);}
+  if(kind==='hole'){cur={t:HOLE_T,ap:0};aimX=LW/2;runBestTier=7;toast('Preview: drop the black hole');}
+  else{cur={t:9,ap:0};aimX=250;runBestTier=9;toast('Preview: drop the Nova on the other one');}
+  clockMax=clockFor(score); clock=clockMax; canDropAt=tNow+.4; hint=0; updateBar();
+}
 function ghost(b){ if(REDUCED)return; ghosts.push({x:b.x,y:b.y,r:b.r,t:b.t,rot:b.rot,l:1}); }
 function sweep(){   /* Play again: the old board falls away instead of vanishing */
   if(REDUCED||!balls.length){ghosts=[];return;}
@@ -1135,6 +1160,7 @@ function initAmbient(){   /* motes drifting up through the pocket and a handful 
 }
 function endGame(){
   if(state!=='play')return;
+  if(demo){reset();openHome();return;}   /* a preview that ends leaves no record, no card and no picture: back to the menu */
   state='over'; shake=REDUCED?0:12; timeScale=1; deathAt=tNow; sfxOver(); vib([40,60,40]); stopMusic(.6); mCadence();
   var isPB=score>startBest&&score>0;
   recordRun(); updateBar();
@@ -1162,7 +1188,7 @@ function reset(){
   sweep(); balls=[];parts=[];floats=[];rings=[];wash=null; if(countTimer){clearInterval(countTimer);countTimer=null;}
   score=0;shown=0;bestShown=false;timeScale=1;comboAt=-9;deathAt=-9;combo=0;lastMerge=-9;runBestTier=0;drops=0;warn=0;shake=0;
   snaps=[];undosFree=UNDO_FREE_PER_RUN;undosUsed=0;revivesUsed=0;used5=false;used10=false;rescuesUsed=0;lastRec=null; closeRescue();
-  holesDue=0; holeFlash=0; holeAt=null; scene=null; runFound=[]; clearShot(); ghosts=ghosts.filter(function(g){return !g.suck;}); waves=[]; hitT=0; cam.z=0; cam.v=0;
+  holesDue=0; holeFlash=0; holeAt=null; scene=null; runFound=[]; clearShot(); demo=false; ghosts=ghosts.filter(function(g){return !g.suck;}); waves=[]; hitT=0; cam.z=0; cam.v=0;
   runMode=linkMode||opt.mode; linkMode=null; runSeed=activeSeed; seqN=0;
   startBest=stat(runMode).best; clock=0; clockMax=0; nxt={t:roll()}; cur=null; canDropAt=tNow+.15; state='play';
   overEl.classList.remove('show'); save.live=null; dirty=false; persist(); updateBar(); startMusic(true);
@@ -1393,7 +1419,7 @@ function renderBoard(){
   rowsEl.innerHTML=html;
 }
 /* One rule for pausing: the game runs only when nothing is over it. Every overlay sets its flag, then updatePause(). */
-function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||!!adTimer||adBusy||faulted; }
+function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||!!adTimer||adBusy||faulted; if(updateReady)applyUpdate(); }
 function openBoard(){ boardMode=runMode; boardOnline=onlineOn(); viewSeed=runSeed||activeSeed||null;   /* the sheet opens on the ranking whenever it can: the shared list is the pull */ if(filter==='seed'&&!viewSeed)filter='all'; renderBoard(); dimEl.classList.add('show'); sheetEl.classList.add('show'); updatePause(); updateBar(); syncOnline(false); syncSeed(false); }
 function closeBoard(){ dimEl.classList.remove('show'); sheetEl.classList.remove('show'); updatePause(); updateBar(); }
 function boardOpen(){return sheetEl.classList.contains('show');}
@@ -1430,6 +1456,16 @@ function buildOpts(){
   msp.textContent='Mode'; msm.textContent='Casual is endless. Rush adds a shot clock that tightens as you score.'; mlab.appendChild(msp); mlab.appendChild(msm);
   modesOptEl=document.createElement('div'); modesOptEl.className='chips modes';
   mrow.appendChild(mlab); mrow.appendChild(modesOptEl); optListEl.appendChild(mrow);
+  pvRowEl=document.createElement('div'); pvRowEl.className='opt'; pvRowEl.style.display='none';   /* shown by five taps on the title */
+  var plab=document.createElement('div'),psp=document.createElement('span'),psm=document.createElement('small'),pbox=document.createElement('div');
+  psp.textContent='Previews'; psm.textContent='Staged runs that show a set piece. Nothing in them is saved, and a run in progress is given up.'; plab.appendChild(psp); plab.appendChild(psm);
+  pbox.className='row pv';
+  [['sun','First Sun'],['hole','Black hole']].forEach(function(p){
+    var pb=document.createElement('button'); pb.type='button'; pb.className='sec small'; pb.textContent=p[1]; pb.setAttribute('data-pv',p[0]);
+    pb.addEventListener('click',function(){audio();startPreview(p[0]);}); pbox.appendChild(pb);
+  });
+  pvRowEl.appendChild(plab); pvRowEl.appendChild(pbox); optListEl.appendChild(pvRowEl);
+  verEl.textContent='Orbfall '+VERSION;
   buildModes(); buildBoardModes(); buildLadder();
 }
 var modeBtns=[],modesOptEl=null,nameEl=null;
@@ -2390,7 +2426,7 @@ function drawHUD(){
     ctx.save(); ctx.translate(20+w+10,54); ctx.scale(cs,cs); ctx.fillStyle='#ffb020'; ctx.font='800 22px '+FONT; ctx.fillText('\u00d7'+combo,0,0); ctx.restore();}
   var liveBest=Math.max(stat(runMode).best,score),isPB=score>startBest&&score>0;
   ctx.font='600 14px '+FONT; ctx.fillStyle=isPB?'#ffb020':'#8fa59a';
-  ctx.fillText((isPB?'new best ':'best ')+fmt(liveBest),20,80);
+  ctx.fillText(demo?'preview, nothing is saved':(isPB?'new best ':'best ')+fmt(liveBest),20,80);
   if(runMode==='rush'){ctx.fillStyle='#ff6b57';ctx.font='700 13px '+FONT;ctx.fillText('rush',20,100);}
   if(runSeed){ctx.fillStyle='#8fa59a';ctx.font='600 12px '+FONT;ctx.fillText((runSeed===dailySeed()?'today ':'seed ')+runSeed,20,runMode==='rush'?118:100);}
   if(nxt){
@@ -2466,6 +2502,7 @@ scores2Btn.addEventListener('click',openBoard);
 closeBtn.addEventListener('click',closeBoard);
 settingsBtn.addEventListener('click',openOpts);
 optsCloseBtn.addEventListener('click',closeOpts);
+optsTitleEl.addEventListener('click',function(){ var n=performance.now(); if(n-pvAt>3000){pvTaps=0;pvAt=n;} if(++pvTaps>=5&&pvRowEl){pvRowEl.style.display='';pvTaps=0;} });   /* five taps on the title within three seconds show the previews row */
 dimEl.addEventListener('click',closeSheets);
 adcancelBtn.addEventListener('click',cancelReward);
 adWatchBtn.addEventListener('click',function(){ if(adShow)adShow(); });   /* the tap that starts a rewarded ad */
@@ -2515,12 +2552,29 @@ document.addEventListener('contextmenu',function(e){e.preventDefault();});
 document.addEventListener('visibilitychange',function(){ if(document.hidden){ if(state==='play')flush(); stopMusic(0); droneStop(.05); } else if(state==='play')startMusic(false); });
 window.addEventListener('pagehide',function(){ if(state==='play')flush(); });
 
+/* A new build arrives in the background (sw.js) and used to show only at the launch after next, so whoever opened
+   the game to see a release saw the one before it. Now, once the new worker has taken over (controllerchange),
+   the page reloads itself the moment that costs nothing: on the home menu with nothing else open. Never during
+   play or behind a sheet; a run in progress is saved first and comes back after. Never twice in a minute. */
+function applyUpdate(){
+  if(!updateReady||!homeOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||adBusy||adTimer||faulted)return;
+  try{
+    var ss=window.sessionStorage,k='orbfall_reloaded',now=Date.now(); if(!ss)return;
+    if(now-(+ss.getItem(k)||0)<60000)return;
+    ss.setItem(k,String(now));
+  }catch(e){ return; }   /* no way to remember that it reloaded: then it does not, and the new build shows at the next launch as before */
+  updateReady=false; if(state==='play'&&drops>0)flush();
+  try{ window.location.reload(); }catch(e){}
+}
+
 /* ---------- pwa: app-shell service worker (sw.js); skipped on file: URLs and where there is no SW API ---------- */
 (function(){
   try{
     var loc=window.location;
     if(!loc||loc.protocol==='file:'||!navigator.serviceWorker)return;
+    var had=!!navigator.serviceWorker.controller;   /* a first visit has no worker yet: its arrival is not an update */
     window.addEventListener('load',function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+    if(navigator.serviceWorker.addEventListener)navigator.serviceWorker.addEventListener('controllerchange',function(){ if(had){updateReady=true;applyUpdate();} had=true; });
   }catch(e){}
 })();
 

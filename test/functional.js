@@ -906,5 +906,57 @@ async function playToGameOver(g) {
   g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67);
   check(g.window.__moods().every(m => m === 6) && !g.dbg().faulted, 'and when the run ends they are all glum');
 
+  // previews (hidden): a staged run that shows a set piece and keeps nothing
+  const pv = new Map([['orbfall_v2', JSON.stringify({ best: 400, bestTier: 5, games: 3, sum: 900, found: 63, opt: { name: 'Glass' } })]]);
+  g = boot(pv); await settle(); g.step(16.67); q = g.dbg();
+  check(!q.previewsShown && /^Orbfall \d+\.\d+\.\d+$/.test(q.ver), 'the settings sheet names the build, and the previews row is hidden (' + q.ver + ')');
+  for (let k = 0; k < 4; k++) g.fire('optsh:click');
+  check(!g.dbg().previewsShown, 'four taps on the settings title are not enough');
+  g.fire('optsh:click'); check(g.dbg().previewsShown, 'the fifth shows the previews row');
+  g.window.__preview('sun'); g.step(16.67); q = g.dbg();
+  check(q.demo && q.curT === 9 && q.tiers.indexOf(9) >= 0 && q.state === 'play' && !q.homeOn && q.floats.some(t => t.indexOf('Preview') === 0), 'the Sun preview stages a Nova on the board and puts another in the hand');
+  for (let k = 0; k < 30; k++) g.step(16.67);
+  g.tap(250); let sawScene = false; for (let k = 0; k < 200; k++) { g.step(16.67); if (g.dbg().scene) sawScene = true; } q = g.dbg();
+  check(sawScene && q.tiers.indexOf(10) >= 0 && q.found === 63 && q.runFound.length === 0, 'dropping it plays the first-Sun moment, and nothing joins the orrery');
+  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle(); g.document.hidden = false;
+  check(!JSON.parse(pv.get('orbfall_v2')).live, 'a preview is never saved as the run in progress');
+  g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67); q = g.dbg();
+  check(!q.demo && q.state === 'play' && q.homeOn && q.games === 3 && q.n === 0 && !q.shot && JSON.parse(pv.get('orbfall_v2')).games === 3, 'when it ends nothing is recorded and the menu comes back');
+  g.window.__preview('hole'); g.step(16.67); q = g.dbg();
+  check(q.demo && q.curT === -1 && q.n >= 8 && !q.homeOn, 'the black hole preview fills the board and puts the hole in the hand');
+  g.reset(); check(!g.dbg().demo, 'and any new run is a real one');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ games: 2, opt: { name: 'Glass' } })]]), { home: true, location: { protocol: 'https:', href: 'https://orb.test/play/?preview=hole', pathname: '/play/', search: '?preview=hole', hash: '' } }); await settle(); g.step(16.67);
+  check(g.dbg().demo && g.dbg().curT === -1 && !g.dbg().homeOn, 'an address ending ?preview=hole starts that preview');
+
+  // updates: a new build takes over the page the moment that costs nothing
+  const upLoc = () => ({ protocol: 'https:', href: 'https://orb.test/play/', pathname: '/play/', search: '', hash: '' });
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ games: 2, opt: { name: 'Glass' } })]]), { home: true, sw: true, location: upLoc() }); await settle(); g.step(16.67);
+  check(g.dbg().homeOn && g.reloads === 0, 'a page whose worker is current does nothing');
+  g.fire('sw:controllerchange');
+  check(g.reloads === 1, 'a new build taking over while the menu is open reloads the page at once');
+  g.fire('sw:controllerchange'); check(g.reloads === 1, 'but never twice in a minute');
+  const upStore = new Map([['orbfall_v2', JSON.stringify({ games: 2, opt: { name: 'Glass' } })]]);
+  g = boot(upStore, { sw: true, location: upLoc() }); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67);
+  g.fire('sw:controllerchange'); g.step(16.67);
+  check(g.reloads === 0 && g.dbg().updateReady && g.dbg().state === 'play', 'during play it waits');
+  g.fire('win:keydown', { key: 'Escape' });
+  check(g.dbg().pauseOn && g.reloads === 0, 'a pause is not the moment either');
+  g.fire('pausehome:click'); await settle();
+  check(g.reloads === 1 && !!JSON.parse(upStore.get('orbfall_v2')).live, 'back on the menu it reloads, with the run saved first');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ games: 2, opt: { name: 'Glass' } })]]), { home: true, sw: 'first', location: upLoc() }); await settle(); g.step(16.67);
+  g.fire('sw:controllerchange');
+  check(g.reloads === 0 && !g.dbg().updateReady, 'on a first visit the worker arriving is not an update');
+
+  // pieces dropped on one spot topple: a ball does not balance on a ball
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  for (let d = 0; d < 6; d++) { g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67); }
+  for (let k = 0; k < 360; k++) g.step(16.67);
+  const tw = g.window.__balls(), twF = g.dbg().FLOOR;
+  const balanced = tw.filter(p => { const u = tw.filter(z => z !== p && Math.hypot(z.x - p.x, z.y - p.y) < p.r + z.r + 1.5);
+    return p.y + p.r < twF - 1.5 && p.x - p.r > 13.5 && p.x + p.r < 346.5 && u.length === 1 && u[0].y > p.y && Math.abs(u[0].x - p.x) < (p.r + u[0].r) * .2; }).length;
+  const spread = Math.max.apply(null, tw.map(p => p.x)) - Math.min.apply(null, tw.map(p => p.x));
+  check(balanced === 0 && spread > 60, 'six pieces dropped on one spot spill sideways instead of standing in a tower (' + tw.length + ' left, ' + Math.round(spread) + ' px across)');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

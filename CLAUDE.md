@@ -20,7 +20,7 @@ file as the design record: it captures decisions already made so they don't get 
   a few seconds. The harness seeds `Math.random` (`SEED`, default 1), so a run of the suite is
   the same run every time; `SEED=7 npm test` explores another sequence.
 - Ship with `npm run release` (tools/release.js): it bumps the version into the worker's cache
-  name, refuses the placeholder domain in the Open Graph tags, runs the tests and prints the git
+  name and the page's own `VERSION` (shown at the foot of the settings sheet), refuses the placeholder domain in the Open Graph tags, runs the tests and prints the git
   commands. Never edit the cache name in `sw.js` by hand. PUBLISHING.md is the owner's runbook.
 - Labels are sentence case ("best", "next", "undo"), no middle-dot metadata strings, no
   all-caps (the pixel wordmark is a mark, not a label). Ambient life has a small budget and
@@ -71,6 +71,16 @@ walls/floor are resolved *after* the pair pass each iteration (this order fixed 
 bug). After the iterations, upward velocity is capped at 5 px/step and horizontal at 6 to stop
 merge "popcorn" launches. A merged orb starts at the parent radius and grows to its target
 over ~10 steps (`b.r` → `b.tr`) so neighbours are pushed gradually. Rotation is visual only.
+
+**No towers (2026-11-12).** The owner noticed that pieces dropped again and again on one spot stood in a
+column, which no pile of balls can do. With identical x a ball sat on a ball for ever: the instability is there
+in the solver, but nothing ever tipped it. Measured in the harness: 12 of 12 one-spot runs ended as a tower
+three to six high. `drop()` now lands a piece up to half of `DROP_JIT` (0.6 px) to one side of the aim,
+stepping by the golden ratio so two drops in a row always differ by at least 0.46 px; the pile's own gravity
+does the rest within about half a second, and the same 12 runs end with every ball on the floor. Nothing in the
+integrator or the constraint loop changed, and the offset is a function of the drop count, not of
+`Math.random`. The physics suite's known blow-up flake stood at 3 of 20 seeds before and 5 of 20 after, inside
+its usual spread.
 World is 360×676 logical units, letterboxed to the viewport; box interior is 336×476.
 The merge branch of `physStep` is also where the effect hooks live (`addScore`, `fx`, `sfxMerge`,
 `vib`, `ghost`, `reveal`, and a born orb's pop and flash fields); those lines are effects, not
@@ -138,8 +148,15 @@ hosts with clean URLs that redirect `/index.html` can never poison the cache. Si
 page in the folder (`privacy.html`) is an ordinary cache-then-network request, and requests to other
 origins (ads, the scoreboard) are not touched at all. **Bump `CACHE` in `sw.js` with every shipped change**
 — installed players only get a new build when that file changes. The old cache is deleted on
-activate, `skipWaiting` + `clients.claim` make the next launch the new build, and there is no
-forced reload (an update must never interrupt a run). Registration lives in the `pwa` section
+activate, and `skipWaiting` + `clients.claim` hand the open page to the new worker. Until 2026-11-12 that was
+all, so a new build showed only at the launch after next, and the owner, opening the game to look at a release,
+kept seeing the one before it (old orbs, and a reward box his blocker still hid). Now the page listens for
+`controllerchange` and `applyUpdate()` reloads it the moment that costs nothing: on the home menu with nothing
+else open (it is asked again from `updatePause()`, so an update that lands mid-run applies when the player is
+next on the menu). Never during play or behind a sheet; a run in progress is flushed first and restored after;
+never twice in a minute (a session-storage stamp, and no reload at all where that storage is missing); and a
+first visit, where the worker arrives for the first time, is not an update. The settings sheet shows the
+build (`VERSION`), so "which version is this device on" has an answer. Registration lives in the `pwa` section
 of index.html and is skipped on `file:` URLs and wherever `navigator.serviceWorker` is absent
 (artifacts). Icons are drawn by `tools/icons.js` with the same palette and highlight geometry
 as `drawBall`; `npm run icons` regenerates them (deterministic output). Verified 2026-09-24 in
@@ -358,6 +375,16 @@ at merges. `mood(b)` reads the rest from what is happening: calm (a small smile,
 black hole is feeding, `fear`), glum (the run is over; not in the share picture, which shows the board as it
 was, `shotting`). Bodies drawn under 9 px (the orrery, the smallest pieces in the next slot) go without. The
 black hole never has one. Seen in desktop Chromium on 2026-11-12.
+
+## Previews (hidden, shipped 2026-11-12)
+Few players will ever make a Sun, and the owner wanted to see the moment without earning it. Five taps on the
+settings title within three seconds show a Previews row (First Sun, Black hole); `?preview=sun` or
+`?preview=hole` in the address starts one at load. `startPreview(kind)` resets into a run flagged `demo`, lays
+out a board and puts the piece that starts the set piece in the hand (a Nova to drop on a Nova; a black hole
+over a full board). A preview keeps nothing: `find()` ignores it, `flush()` never saves it as the run in
+progress, `endGame()` goes straight back to the menu with no record, card or picture, and the HUD reads
+"preview, nothing is saved" where the best score goes. Any `reset()` clears the flag. Starting one gives up a
+real run in progress, which the row says.
 
 ## Your orrery (WOW pass item 6, shipped 2026-11-12)
 A reason to come back beyond the score: the game remembers every body ever made on the device. `save.found` is
@@ -702,4 +729,8 @@ they are, for the same reason · the first Sun's set piece and the black hole's 
 generators (`sceneRnd`, `HSTK`), and `fx()` keeps its place in the merge branch · nothing drops and the Rush
 clock waits while a Sun gathers · the black hole's drone is reconciled by `droneSync()` every frame and stopped
 when the tab hides, never left running · `save.found` only ever gains bits, and `drawOrrery()` hands `ctx` and
-`light` back whatever happens · the share picture is made when the card appears, never at the tap.
+`light` back whatever happens · the share picture is made when the card appears, never at the tap · a
+preview (`demo`) records, saves and discovers nothing · an update reloads the page only on the home menu with
+nothing open, never in play, never twice in a minute · the release script writes `VERSION` into the page; the
+page, the worker and package.json always name the same build · a dropped piece is never dead centre on the
+one before it (`DROP_JIT`).

@@ -34,7 +34,9 @@ You need: a free GitHub account, and this folder as it is (it is already a git r
    ```
    It bumps the version, writes it into the service worker so installed copies update, runs the tests, and
    prints the four git commands to run next (add, commit, tag, push). Run them. GitHub Pages picks up the push
-   within a minute or two.
+   within a minute or two. A device that already has the game picks the new build up in the background and
+   switches to it by itself the next time it is on the home screen; the foot of the Settings sheet says which
+   build a device is running, so check there before deciding an update did not arrive.
 6. **Check it on a phone.** Open the address in Chrome on Android and Safari on iPhone. Play a run. Use
    "Add to home screen" (Android offers it after two runs; on iPhone use Share → Add to Home Screen). Open the
    installed icon and check the run resumed.

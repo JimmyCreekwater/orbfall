@@ -25,6 +25,9 @@ function pngSize(f) {
   check(/<link rel="manifest" href="manifest\.webmanifest">/.test(html), 'index.html links the manifest');
   check(/apple-mobile-web-app-capable/.test(html) && /apple-mobile-web-app-status-bar-style/.test(html), 'the apple-mobile-web-app meta tags are still there');
   check(/serviceWorker\.register\('sw\.js'\)/.test(html), 'index.html registers sw.js');
+  const pkgv = JSON.parse(read('package.json')).version;
+  check(html.includes("var VERSION='" + pkgv + "';") && read('sw.js').includes("var CACHE='orbfall-shell-" + pkgv + "';"), 'the page, the worker and package.json name the same build (' + pkgv + ')');
+  check(/addEventListener\('controllerchange'/.test(html) && /function applyUpdate\(\)/.test(html), 'the page listens for a new worker taking over');
   const touch = /<link rel="apple-touch-icon" href="([^"]+)">/.exec(html);
   check(touch && pngSize(touch[1]) === '180x180', 'apple-touch-icon is a 180x180 PNG');
 

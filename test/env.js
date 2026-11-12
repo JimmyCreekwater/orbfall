@@ -91,6 +91,12 @@ function makeEnv(storeMap, opts) {
   g.step = (ms) => { now += ms; for (const t of timers.slice()) { t.acc += ms; while (t.acc >= t.ms) { t.acc -= t.ms; t.f(); } } g._raf(now); };
   g.H = H; g.els = els; g.timers = timers; g.urls = 0; g.revoked = [];
   if (opts.files) g.navigator.canShare = (d) => !!(d && d.files && d.files.length);
+  g.reloads = 0;
+  if (opts.sw) {   // a browser with a service worker ('first': a first visit, no controller yet), session storage, and a page that can reload
+    g.navigator.serviceWorker = { controller: opts.sw === 'first' ? null : {}, register: () => Promise.resolve(), addEventListener: (n, f) => { (H['sw:' + n] = H['sw:' + n] || []).push(f); } };
+    const ss = new Map(); win.sessionStorage = { getItem: (k) => ss.has(k) ? ss.get(k) : null, setItem: (k, v) => { ss.set(k, String(v)); } };
+    win.location = Object.assign({ protocol: 'https:', href: 'https://orb.test/play/', pathname: '/play/', search: '', hash: '' }, win.location || {}, { reload: () => { g.reloads++; } });
+  }
   g.fire = (key, ev) => { (H[key] || []).forEach(f => f(ev || {})); };
   g.dbg = () => win.__dbg();
   g.fetchLog = [];   // the game's network calls; fetchReply decides the answer
@@ -114,7 +120,7 @@ window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
 window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
-window.__lightAngle=lightAngle;window.__end=endGame;window.__moods=function(){return balls.map(mood);};window.__moodOf=function(id){for(var i=0;i<balls.length;i++)if(balls[i].id===id)return mood(balls[i]);return -1;};
+window.__lightAngle=lightAngle;window.__end=endGame;window.__preview=startPreview;window.__balls=function(){return balls.map(function(b){return {x:b.x,y:b.y,r:b.r,t:b.t};});};window.__moods=function(){return balls.map(mood);};window.__moodOf=function(id){for(var i=0;i<balls.length;i++)if(balls[i].id===id)return mood(balls[i]);return -1;};
 window.__note=mergeNote;window.__chord=CHORD;window.__roots=CHORD_ROOT;window.__pan=panOf;
 window.__setAdApi=function(f){adApi=f;adSound();};
 window.__adsInit=function(c,test){AD_CLIENT=c;if(test!=null)AD_TEST=test;adsInit();};
@@ -143,6 +149,7 @@ window.__dbg=function(){
     hole:(function(){for(var i=0;i<balls.length;i++)if(balls[i].hole)return {phase:balls[i].phase,r:Math.round(balls[i].tr),eaten:balls[i].eaten,scale:balls[i].scale,pw:balls[i].pw};return null;})(),
     scene:scene?{t:scene.t,lit:scene.lit,parents:scene.par.length}:null,god:!!(GOD&&HDISC),
     shot:shot?{file:shot.file?shot.file.name:null,type:shot.blob?shot.blob.type:null,url:shot.url}:null,sendImg:sendImgEl.src||'',sendImgShown:sendImgEl.style.display==='block',sendSave:sendSaveEl.getAttribute('download'),sendSaveShown:sendSaveEl.style.display==='block',
+    demo:demo,previewsShown:!!(pvRowEl&&pvRowEl.style.display!=='none'),ver:verEl.textContent,updateReady:updateReady,
     found:save.found,runFound:runFound.slice(),orcap:orCapEl.textContent,foundLine:foundEl.textContent,foundShown:foundEl.classList.contains('show'),orFresh:orFresh,orW:orEl.width,
     holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     adBusy:adBusy,adShowing:adShowing,adH:adhEl.textContent,adP:adpEl.textContent,adWatch:adWatchBtn.classList.contains('show'),

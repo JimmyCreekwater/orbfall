@@ -26,7 +26,10 @@ next piece is a black hole: drop it and it swallows the board one orb at a time,
 itself and bursts. The first Sun of a run stops the world for a moment of its own.
 The ? on the play screen opens the rules and the merge ladder. The home screen keeps an orrery of every body
 you have ever made, with empty sockets for the ones still to find. Settings has a Faces switch that gives every
-orb eyes and a mouth; it is off unless you turn it on.
+orb eyes and a mouth; it is off unless you turn it on. The foot of the settings sheet names the build you are
+running; a new build applies itself the next time you are on the home screen. Hidden: tap the word Settings
+five times for previews of the first-Sun moment and the black hole (or add `?preview=sun` / `?preview=hole` to
+the address); nothing in a preview is saved.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
 Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cached by `sw.js`,
@@ -64,7 +67,8 @@ land on the Today board; the menu and pause sheet keep the game paused behind th
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
 and random seeds; the share box; the seed board; merge motes; the black hole and its collapse; the first Sun's
 set piece; the orrery (what is found, kept, seeded from an older save, shown and called out); the share picture (made at
-game over, shared as a file, shown in the box, let go); faces and their moods; triples; the ad adapter
+game over, shared as a file, shown in the box, let go); faces and their moods; previews that keep nothing; updates that apply on the menu and never in play; no
+towers from drops on one spot; triples; the ad adapter
 (prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, a
 blocked or offline player told why, no restart under an ad); no element name a content blocker would hide; the crash card catches a throwing frame;
 sharing, the landscape card and
