@@ -130,7 +130,8 @@ async function playToGameOver(g) {
 
   // the feel pass
   g = boot(new Map()); await settle(); g.step(16.67);
-  check(g.dbg().sprites === 12, 'one lit sprite per tier plus the brass orb of the wordmark is built at boot');
+  check(g.dbg().sprites === 12, 'one painted surface per tier plus the brass orb of the wordmark is built at boot');
+  check(g.dbg().baked, 'and with them the shared shading, the contact shadow, the three halos, the corona and the black hole');
   g.window.__burst(12); check(g.dbg().parts <= 420 && g.dbg().parts > 0, 'the particle cap holds under a burst (' + g.dbg().parts + ' particles)');
   g.window.__chain(); check(g.dbg().wash === true && g.dbg().floats.some(t => t === 'chain \u00d73'), 'a chain of three washes the box edge and floats the chain');
   g.reset(); for (let k = 0; k < 15; k++) g.step(16.67);   // let the first piece spawn before tapping
@@ -539,6 +540,7 @@ async function playToGameOver(g) {
   const ladder = g.els.ladder._html;
   check(q.ladder === 11 && ladder.indexOf('<b>Mote<span>two make a Pip</span></b><small>+1</small>') > 0 && ladder.includes('<b>Nova<span>two make a Sun</span></b><small>+55</small>') && ladder.includes('<b>Sun<span>two vanish</span></b><small>+200</small>'), 'the ladder lists all eleven sizes with what two of them make and the points');
   check(ladder.indexOf('Mote') < ladder.indexOf('Pip') && ladder.indexOf('Star') < ladder.indexOf('Nova') && (ladder.match(/radial-gradient/g) || []).length === 11, 'in merge order, each with its colour');
+  check((ladder.match(/<canvas [^>]*data-t="\d+"/g) || []).length === 11, 'and a canvas each, where the real body is painted when the card opens');
   const helpTap = () => g.fire('c:pointerdown', { clientX: q.offX + q.helpX * q.scl, clientY: q.offY + q.helpY * q.scl, pointerId: 1 });
   const dropsBeforeHelp = q.drops; helpTap(); g.fire('c:pointerup', { clientX: q.offX + q.helpX * q.scl, pointerId: 1 }); g.step(16.67); q = g.dbg();
   check(q.helpOn && q.paused && q.drops === dropsBeforeHelp && g.els.help.classList.contains('show'), 'tapping the question mark opens the legend and pauses instead of dropping');
@@ -738,6 +740,12 @@ async function playToGameOver(g) {
   g.fire('rwno:click'); g.step(16.67);
   g.fire('win:keydown', { key: ' ', preventDefault() {} }); g.step(16.67);
   check(g.dbg().state === 'play' && g.dbg().drops === 0, 'and afterwards the keyboard restarts as before');
+
+  // the painted bodies: one of every tier on the board draws without a fault (kept last: it spends the seeded dice)
+  g = boot(new Map()); await settle(); g.step(16.67);
+  for (let t = 0; t <= 10; t++) g.window.__place(30 + t * 28, 300 + (t % 3) * 60, t);
+  for (let k = 0; k < 20; k++) g.step(16.67);
+  check(!g.dbg().faulted && g.dbg().n >= 6, 'every tier draws without a fault (' + g.dbg().n + ' bodies on the board)');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

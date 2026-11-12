@@ -10,10 +10,10 @@ file as the design record: it captures decisions already made so they don't get 
   script that drew the icons (`tools/icons.js`, run by hand, output checked in), the tests, the
   board's worker (`server/`) and the privacy page (`privacy.html`, plus `ads.txt` once ads are on).
   Keep it that way; a bundler is not welcome.
-- Canvas 2D at 60 fps on a mid-range phone is the performance bar. Orbs are drawn from one
-  pre-lit sprite per tier and the table and pocket are static layers, all rebuilt in `resize()`;
-  the contact shadow under every orb and the glow of the top two tiers are baked into the
-  sprites at build time, the felt grain and the star field into the layers. Don't add per-frame
+- Canvas 2D at 60 fps on a mid-range phone is the performance bar. Orbs are drawn from baked
+  sprites (a painted surface per tier, one shared shading sprite, one contact shadow, halos for the
+  three that shine: see Bodies) and the table and pocket are static layers, all rebuilt in
+  `resize()`; the felt grain and the star field are baked into the layers. Don't add per-frame
   shadows, filters, gradients, or DOM per ball.
 - Run `npm test` before and after any change to physics, scoring, persistence, input, or the
   PWA shell. The three suites (physics, functional, pwa) are headless Node (no deps) and take
@@ -260,6 +260,27 @@ screen. The gate says so where it can tell (`keepHint()`): the memory-only store
 storage) and the in-app browsers with a telling user agent (`inApp()`); iOS's in-app Safari view is
 indistinguishable and gets no hint.
 
+## Bodies (WOW pass item 1, shipped 2026-11-12)
+The owner asked for great, not good; the first answer was that the game told its theme in names and showed it
+as coloured marbles. Each tier is now painted as what its name says, once per pixel scale, by `paintBody()`:
+Mote and Pip embers (the Pip freckled), a glass Bead with its hole, a cat's-eye Marble, an ocean-world Orb with
+land, cloud and an ice cap, a cratered Moon with seas, a banded Planet with a ring, a Giant with turbulent bands
+and a storm, a grainy Star, a wispy white-hot Nova, a Sun with granulation and spots. It is all vector work
+from a seeded generator (`lcg(101+t*7)`), so every launch shows the same worlds, nothing is an asset, and the
+harness's no-op canvas runs it. Every body keeps its tier colour and size, which is how a player reads the
+board; detail must never cost that.
+
+`drawBall()` then composes per frame: the contact shadow (`SHW`), the surface (`SPR[t]`) turned by the orb's own
+`rot`, and the shared shading sprite (`SHD`: night side, highlight, lit limb, painted with the light from "up")
+turned by `lightAngle()` to face the light (`LAMP`, upper left, when only the lamp lights the pocket). That is
+three `drawImage` calls per orb. The three top tiers shine instead: no shading, a halo baked at half scale and
+added with `lighter` (`HALO`), and motion of their own: the Star's twinkling four-point flare (`flareOn`), the
+Nova's breathing shells (`shellsOn`), the Sun's corona, one ray sprite drawn twice turning against itself
+(`coronaOn`, `COR`). The Planet's ring is two strokes behind and two in front (`ringOn`). The balls are drawn
+inside a clip at the pocket walls and floor, so rings, flares and halos never cross the brass. The brass orb of
+the wordmark keeps its plain lit sprite (`paintBrass`), and `SPR` still has twelve entries. The help legend
+paints the real bodies into small canvases when it opens (`paintLadder`), over the old colour dots.
+
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
 (`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens
@@ -406,9 +427,7 @@ Showy was the brief. Everything below sits behind the `feel knobs` block and is 
   in the constraint loop: a `SQUASH` squash, a sage dust puff, a thud pitched by tier, a 4 ms
   tick. Release plays a soft tick instead of the old thud.
 - **Progression**: the first time a run reaches a tier, `reveal()` floats its name in the tier
-  colour with a slow ring and an arpeggio. Tier signatures live in `decorate()`: plain to Bead,
-  a swirl on Marble, a band on Orb, craters from Moon, seas on Giant, a four-point sparkle on
-  Star, a halo on Nova, a corona on Sun; Planet has a ring drawn behind and in front of the body.
+  colour with a slow ring and an arpeggio. What each tier looks like is in Bodies, below.
 - **Danger**: `drawDanger` outlines every orb over the line in coral, stronger as its timer runs;
   a soft tick every quarter second past 0.45 s; and `timeScale` eases towards `SLOW_TO` as the
   timer passes `SLOW_FROM`. Physics time slows, so the loss takes longer in real time and snaps
