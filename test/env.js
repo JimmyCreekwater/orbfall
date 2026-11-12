@@ -108,7 +108,7 @@ window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
 window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
-window.__lightAngle=lightAngle;
+window.__lightAngle=lightAngle;window.__end=endGame;
 window.__note=mergeNote;window.__chord=CHORD;window.__roots=CHORD_ROOT;window.__pan=panOf;
 window.__setAdApi=function(f){adApi=f;adSound();};
 window.__adsInit=function(c,test){AD_CLIENT=c;if(test!=null)AD_TEST=test;adsInit();};
@@ -136,6 +136,7 @@ window.__dbg=function(){
     helpOn:helpOn,ladder:(ladderEl.innerHTML.match(/<li>/g)||[]).length,helpX:HELP_X,helpY:HELP_Y,
     hole:(function(){for(var i=0;i<balls.length;i++)if(balls[i].hole)return {phase:balls[i].phase,r:Math.round(balls[i].tr),eaten:balls[i].eaten,scale:balls[i].scale,pw:balls[i].pw};return null;})(),
     scene:scene?{t:scene.t,lit:scene.lit,parents:scene.par.length}:null,god:!!(GOD&&HDISC),
+    found:save.found,runFound:runFound.slice(),orcap:orCapEl.textContent,foundLine:foundEl.textContent,foundShown:foundEl.classList.contains('show'),orFresh:orFresh,orW:orEl.width,
     holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     adBusy:adBusy,adShowing:adShowing,adH:adhEl.textContent,adP:adpEl.textContent,adWatch:adWatchBtn.classList.contains('show'),
     adFail:adFail,privacyShown:privacyEl.style.display!=='none',adAlive:adAlive,adDead:adDead,

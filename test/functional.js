@@ -829,5 +829,36 @@ async function playToGameOver(g) {
   check(feedPw > .5 && colFrames > 30 && maxScale > 1.1 && minScale < .05, 'with the board empty it swells, then falls in on itself to a point (' + colFrames + ' frames)');
   check(!q.hole && q.n === 0 && q.holeFlash > 0 && q.hit > 0 && q.waves === 3 && q.floats.indexOf('Board cleared') >= 0, 'and only then bursts: the flash, the hold, three ripples');
 
+  check((g.dbg().found & (1 << 11)) !== 0, 'and a first black hole joins the orrery');
+
+  // your orrery (item 6): every body ever made is remembered, shown on the home card, and called out the first time
+  const orr = new Map();
+  g = boot(orr); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  check(g.dbg().found === 0 && g.dbg().runFound.length === 0, 'a new player has found nothing yet');
+  const firstT = g.dbg().curT; g.tap(300); g.step(16.67); q = g.dbg();
+  check(q.found === (1 << firstT) && q.runFound.length === 1, 'the first piece dropped is the first body found');
+  g.window.__place(80, 560, 4); g.window.__place(150, 560, 4); g.step(16.67); q = g.dbg();
+  check((q.found & (1 << 5)) !== 0 && q.floats.indexOf('Moon') >= 0 && q.floats.indexOf('new in your orrery') >= 0, 'a first Moon is named, with a line saying it is new in the orrery');
+  const found1 = q.found;
+  g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67); q = g.dbg();
+  check(q.state === 'over' && q.foundShown && /^New in your orrery: /.test(q.foundLine) && /Moon/.test(q.foundLine), 'the game-over card lists what the run added (' + q.foundLine + ')');
+  g.fire('home2:click'); for (let k = 0; k < 5; k++) g.step(16.67); q = g.dbg();
+  check(q.homeOn && q.orcap === 'Your orrery: 2 of 12 found' && q.orFresh === found1 && q.orW === 600 && !q.faulted, 'the home card shows the orrery with a count, and marks what is new since it was last seen');
+  g.fire('play:click'); g.step(16.67); g.window.__place(80, 560, 4); g.window.__place(150, 560, 4); g.step(16.67); q = g.dbg();
+  check(q.floats.indexOf('Moon') >= 0 && q.floats.indexOf('new in your orrery') < 0 && q.runFound.length === 0 && q.found === found1, 'in a later run the Moon is named but is no longer new');
+  g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67);
+  check(!g.dbg().foundShown, 'and a run that adds nothing says nothing');
+  g = boot(orr); await settle(); g.step(16.67);
+  check(g.dbg().found === found1, 'what was found survives a reload');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ best: 6200, bestTier: 7, games: 12, sum: 30000 })]])); await settle(); g.step(16.67);
+  check(g.dbg().found === (((1 << 8) - 1) | (1 << 11)), 'a save from before the orrery starts with what its records prove: every size up to its best, and the black hole');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ best: 900, bestTier: 6, games: 3, sum: 2000, found: 4095 & ~(1 << 5) })]])); await settle(); g.step(16.67);
+  g.window.__place(80, 560, 4); g.window.__place(150, 560, 4); g.step(16.67); q = g.dbg();
+  check(q.found === 4095 && q.floats.indexOf('Your orrery is complete') >= 0, 'the last body found completes it, and the game says so');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ best: 900, bestTier: 6, games: 3, sum: 2000, found: 4095, opt: { name: 'Glass' } })]]), { home: true }); await settle(); for (let k = 0; k < 30; k++) g.step(16.67); q = g.dbg();
+  check(q.homeOn && q.orcap === 'Your orrery is complete' && !q.faulted, 'a full orrery turns on the home card without a fault');
+  g = boot(new Map([['orbfall_v2', JSON.stringify({ best: 900, bestTier: 6, games: 3, sum: 2000, found: 37, opt: { name: 'Glass' } })]]), { home: true, reduced: true }); await settle(); for (let k = 0; k < 10; k++) g.step(16.67); q = g.dbg();
+  check(q.homeOn && q.orcap === 'Your orrery: 3 of 12 found' && !q.faulted, 'and a partial one stands still under reduced motion');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -23,7 +23,8 @@ once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets
 button is struck through; runs finished without any rescue wear a ✦ on the board. Every 5,000 points the
 next piece is a black hole: drop it and it swallows the board one orb at a time, scoring each, then falls in on
 itself and bursts. The first Sun of a run stops the world for a moment of its own.
-The ? on the play screen opens the rules and the merge ladder.
+The ? on the play screen opens the rules and the merge ladder. The home screen keeps an orrery of every body
+you have ever made, with empty sockets for the ones still to find.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
 Add to Home screen), iOS uses Share → Add to Home Screen. The app shell is cached by `sw.js`,
@@ -60,7 +61,7 @@ records and boards; seeds deal the same pieces, survive undo and reload, start f
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
 and random seeds; the share box; the seed board; merge motes; the black hole and its collapse; the first Sun's
-set piece; triples; the ad adapter
+set piece; the orrery (what is found, kept, seeded from an older save, shown and called out); triples; the ad adapter
 (prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, a
 blocked or offline player told why, no restart under an ad); no element name a content blocker would hide; the crash card catches a throwing frame;
 sharing, the landscape card and

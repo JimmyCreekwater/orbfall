@@ -101,8 +101,8 @@ is added, an upward displacement clamp probably belongs beside it.
 
 ## Persistence
 Schema v2, one JSON blob under key `orbfall_v2`:
-`{best, bestTier, games, sum, revives, modes, opt, cid, sent, hintedInstall, top:[rec…],
-runs:[rec…≤400], live}` where `cid` is the random 16-hex player id for the online board, `sent`
+`{best, bestTier, games, sum, revives, modes, opt, cid, sent, hintedInstall, found, top:[rec…],
+runs:[rec…≤400], live}` where `found` is the orrery's record (one bit per body ever made, see Your orrery), `cid` is the random 16-hex player id for the online board, `sent`
 is the best score already posted per mode, `seedSent` the best posted per seed and mode (keys
 `SEED|mode`, the newest 50 kept), `hintedInstall` says the iPhone hint was dismissed,
 `rec = {s:score, t:bestTier, d:epochMs, u:undosUsed, v:revivesUsed, m?:'rush', sd?:seed}` (no
@@ -345,6 +345,28 @@ Both were stepped through frame by frame in desktop Chromium on 2026-11-12 with 
 measured through an offline render as in item 4: the Sun's ignition is the loudest moment in the game at 0.60
 of full scale (no clipping), the drone sits near 0.04 RMS under merges that peak near 0.1, and the hole's
 burst peaks at 0.46. Not seen on a phone, not heard by anyone.
+
+## Your orrery (WOW pass item 6, shipped 2026-11-12)
+A reason to come back beyond the score: the game remembers every body ever made on the device. `save.found` is
+a bitmask, bits 0 to 10 for the sizes and bit 11 (`HOLE_BIT`) for the black hole. `find(i)` sets a bit the
+first time and returns true: `drop()` calls it quietly for the piece dropped, the merge branch for the body
+made, `wakeHole()` for the black hole. A first-ever body gets "new in your orrery" over its name in play
+(`reveal(t,x,y,fresh)`; the Sun's set piece puts it under the title) with two high bells (`sfxFound`), the
+game-over card lists what the run added (`runFound`, `#foundline`: up to three names, then a count), and the
+twelfth raises "Your orrery is complete". A discovery is never taken back by an undo. A save from before
+the orrery is seeded once (`seedFound`): every size up to its best, the five that are dealt, and the black
+hole if its best score reached `HOLE_EVERY`; a restored run adds what it holds.
+
+The home card shows it (`#orrery`, `drawOrrery()`, called from the frame loop while the menu is open): a hub
+with eleven arms on tilted rings, each found body riding its arm (nearer ones faster, sizes in order outward,
+the black hole outermost), the far half drawn behind the hub and the near half in front; a body not yet made
+is an empty socket standing still on a dashed ring, and the hub holds the Sun or a dashed socket. It draws
+with the game's own sprites by borrowing `ctx` as the help legend does, and while it draws `orr` is set and
+`light` is pointed at the hub, so the bodies are lit by their own Sun once it is found; both are restored in
+a `finally`. Bodies found since the menu was last open pulse with a gold ring for three seconds (`orFresh`).
+The caption counts them. The canvas is capped at 19 % of the viewport height (14 % under 620 px) so the card
+still fits a short phone. Under reduced motion it stands still. Seen in desktop Chromium at phone size on
+2026-11-12; not on a phone.
 
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
@@ -651,4 +673,5 @@ generator (`driftRnd`), and the `Math.random` calls already in `fx`, `puffAt`, `
 they are, for the same reason · the first Sun's set piece and the black hole's streaks roll their own
 generators (`sceneRnd`, `HSTK`), and `fx()` keeps its place in the merge branch · nothing drops and the Rush
 clock waits while a Sun gathers · the black hole's drone is reconciled by `droneSync()` every frame and stopped
-when the tab hides, never left running.
+when the tab hides, never left running · `save.found` only ever gains bits, and `drawOrrery()` hands `ctx` and
+`light` back whatever happens.
