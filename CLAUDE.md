@@ -281,6 +281,15 @@ inside a clip at the pocket walls and floor, so rings, flares and halos never cr
 the wordmark keeps its plain lit sprite (`paintBrass`), and `SPR` still has twelve entries. The help legend
 paints the real bodies into small canvases when it opens (`paintLadder`), over the old colour dots.
 
+**Light (item 2, shipped 2026-11-12).** The brightest of the three that shine lights the pocket: a Sun over a
+Nova over a Star, the oldest on a tie (`updateLight`). `light.on` eases to 1 while one exists and back to 0
+when none does, and its position glides to the source, so a change of source never jumps. `lightAngle(x,y)`
+turns every lit body's shading to face it by the short way round (the HUD, above the pocket, always keeps the
+lamp). `RIM[t]` is the light's colour as a crescent, added with `lighter` to the side that faces it and fading
+with distance (`LIGHT_POW`, falloff `1/(1+d²/48000)`); `POOL[t]` is its glow, drawn once on the sky and once,
+stronger, clipped to the brass of the walls and the floor (`drawLight`). No gradient is made per frame: all of
+it is baked sprites, at most one extra `drawImage` per orb and two large ones per frame while a light exists.
+
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
 (`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens

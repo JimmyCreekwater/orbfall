@@ -108,6 +108,7 @@ window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
 window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
+window.__lightAngle=lightAngle;
 window.__setAdApi=function(f){adApi=f;adSound();};
 window.__adsInit=function(c,test){AD_CLIENT=c;if(test!=null)AD_TEST=test;adsInit();};
 window.__setSeed=function(s){activeSeed=s;};
@@ -136,7 +137,7 @@ window.__dbg=function(){
     holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     adBusy:adBusy,adShowing:adShowing,adH:adhEl.textContent,adP:adpEl.textContent,adWatch:adWatchBtn.classList.contains('show'),
     adFail:adFail,privacyShown:privacyEl.style.display!=='none',adAlive:adAlive,adDead:adDead,
-    baked:!!(SHD&&SHW&&HALO[8]&&HALO[9]&&HALO[10]&&COR&&HSPR),lamp:lightAngle(180,300),
+    baked:!!(SHD&&SHW&&HALO[8]&&HALO[9]&&HALO[10]&&COR&&HSPR&&RIM[8]&&RIM[10]&&POOL[9]),lamp:lightAngle(180,300),light:{on:light.on,t:light.t,x:light.x,y:light.y},
     nameOn:nameOn,nameWarn:nameWarnEl.textContent,seedBoxOn:seedBoxOn,seedIn:seedInEl.value,shareOn:shareOn,shareText:shareTextEl.value,viewSeed:viewSeed,drift:drift.length,
     rescueLeft:rescueLeft(),rescueBtn:reviveBtn.textContent+(reviveBtn.disabled?'(off)':''),rescueCap:rescueCapEl.textContent,rescueNote:rescueNoteEl.textContent,
     seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,

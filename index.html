@@ -1482,6 +1482,7 @@ function updateFx(dt){
     else b.scale+=(1-b.scale)*Math.min(1,dt*12);
   }
   updateHole(dt); if(holeFlash>0)holeFlash=Math.max(0,holeFlash-dt*3);
+  updateLight(dt);
   if(adDeadline&&adTimeout&&performance.now()>adDeadline)adTimeout();   /* no answer from the ad API in time */
   if(REDUCED)shown=score; else{shown+=(score-shown)*Math.min(1,dt*ROLL);if(Math.abs(score-shown)<.6)shown=score;}
   if(!bestShown&&startBest>0&&score>startBest){bestShown=true;floats.push({x:LW/2,y:BOX.y+120,txt:'New best',l:2.2,vy:-14,big:true,age:0});sfxBest();vib([8,30,12]);}
@@ -1564,6 +1565,12 @@ var SPRITES=TIERS.concat([BRASS_SPEC]);   /* the eleven tiers plus the brass orb
 var SPR=[],SPRK=0,SHD=null,SHW=null,HALO=[],COR=null;   // surfaces by tier (and the brass orb); the shared shading and contact shadow; halos of the three that shine; the Sun's corona
 var SHR=64,LAMP=-.664;     // the radius the shared sprites are painted at; the shading's turn when only the lamp over the table lights the pocket
 var RING_DARK=mix(TIERS[6].c,.3,[0,0,0]);
+/* Light. The brightest of the three that shine (a Sun over a Nova over a Star; the oldest on a tie) lights the
+   pocket: light.on eases to 1 while one exists, its position glides to the source, and everything that draws a
+   lit body asks lightAngle() which way to face. RIM is that light's colour as a crescent, added to the lit side
+   of each body and fading with distance; POOL is its glow on the sky and, stronger, on the brass. */
+var light={on:0,x:0,y:0,t:-1,id:0},RIM=[],POOL=[],LIGHT_POW=[];
+LIGHT_POW[8]=.7; LIGHT_POW[9]=.82; LIGHT_POW[10]=.95;
 function sprite(R,pad,K,paint){var h=R+pad,c=mkCanvas(h*2*K,h*2*K),sc=c.getContext('2d');sc.setTransform(K,0,0,K,h*K,h*K);paint(sc);return {c:c,h:h};}
 function inDisc(rs,r){var a=rs()*TAU,d=Math.sqrt(rs())*r;return [Math.cos(a)*d,Math.sin(a)*d];}
 function blobOn(sc,x,y,rad,rs,n){   /* an irregular rounded patch: n points around a centre, joined by curves */
@@ -1650,6 +1657,15 @@ function paintCorona(sc,r){   /* eighteen uneven rays; two copies turning agains
     g.addColorStop(0,'rgba(255,190,70,.5)'); g.addColorStop(1,'rgba(255,150,40,0)'); sc.fillStyle=g;
     sc.beginPath(); sc.moveTo(Math.cos(a-w)*r*.92,Math.sin(a-w)*r*.92); sc.lineTo(Math.cos(a)*len,Math.sin(a)*len); sc.lineTo(Math.cos(a+w)*r*.92,Math.sin(a+w)*r*.92); sc.closePath(); sc.fill();}
 }
+function paintRim(sc,t){var R=SHR,c=TIERS[t].c,W=[255,255,255],g;
+  sc.save(); sc.beginPath(); sc.arc(0,0,R,0,TAU); sc.clip();
+  g=sc.createRadialGradient(0,-R*.72,R*.05,0,-R*.3,R*.95); g.addColorStop(0,mixa(c,.3,W,.6)); g.addColorStop(.55,mixa(c,.3,W,.2)); g.addColorStop(1,mixa(c,.3,W,0));
+  sc.fillStyle=g; sc.fillRect(-R,-R,R*2,R*2); sc.restore();
+}
+function paintPool(sc,t){var c=TIERS[t].c,W=[255,255,255],g=sc.createRadialGradient(0,0,0,0,0,300);
+  g.addColorStop(0,mixa(c,.3,W,.34)); g.addColorStop(.45,mixa(c,.3,W,.1)); g.addColorStop(1,mixa(c,.3,W,0));
+  sc.fillStyle=g; sc.beginPath(); sc.arc(0,0,300,0,TAU); sc.fill();
+}
 function paintBrass(sc){   /* the wordmark's orb: lit from the upper left, its contact shadow baked in */
   var T=BRASS_SPEC,r=T.r,sh=sc.createRadialGradient(0,r*.16,r*.55,0,r*.16,r*1.05); sh.addColorStop(0,'rgba(0,0,0,.5)'); sh.addColorStop(1,'rgba(0,0,0,0)');
   sc.fillStyle=sh; sc.beginPath(); sc.arc(0,r*.16,r*1.05,0,TAU); sc.fill();
@@ -1665,6 +1681,8 @@ function buildSprites(){
   var KL=Math.max(1,K/2);   /* light is soft: the halos and the corona are baked at half scale */
   [8,9,10].forEach(function(t){var r=TIERS[t].r,m=t===10?.5:(t===9?.42:.34);HALO[t]=sprite(r,r*m,KL,function(sc){paintHalo(sc,t,r,m);});});
   COR=sprite(TIERS[MAXT].r,TIERS[MAXT].r*.7,KL,function(sc){paintCorona(sc,TIERS[MAXT].r);});
+  RIM=[]; POOL=[];
+  [8,9,10].forEach(function(t){RIM[t]=sprite(SHR,2,K,function(sc){paintRim(sc,t);});POOL[t]=sprite(300,0,Math.max(.5,K/6),function(sc){paintPool(sc,t);});});
   var hr=HOLE_SR,hh=hr*1.6,hc=mkCanvas(hh*2*K,hh*2*K),hs=hc.getContext('2d'); hs.setTransform(K,0,0,K,hh*K,hh*K);   /* the black hole: a baked dark core and violet halo */
   var hg=hs.createRadialGradient(0,0,hr*.15,0,0,hr*1.55); hg.addColorStop(0,'#000'); hg.addColorStop(.5,'#0d0718'); hg.addColorStop(.68,'#2a1650'); hg.addColorStop(.8,'rgba(139,107,255,.45)'); hg.addColorStop(1,'rgba(139,107,255,0)');
   hs.fillStyle=hg; hs.beginPath(); hs.arc(0,0,hr*1.55,0,TAU); hs.fill();
@@ -1757,7 +1775,25 @@ function drawAim(){
   }
 }
 function img(S,k){ctx.drawImage(S.c,-S.h*k,-S.h*k,S.h*2*k,S.h*2*k);}
-function lightAngle(x,y){return LAMP;}   /* which way the shading faces at a point: for now only the lamp over the table */
+function lightAngle(x,y){   /* which way the shading faces at a point: toward the light in the pocket, else the lamp over the table (the HUD always) */
+  if(light.on<=0||y<BOX.y-30)return LAMP;
+  var d=Math.atan2(light.y-y,light.x-x)+Math.PI/2-LAMP; d=Math.atan2(Math.sin(d),Math.cos(d));   /* the short way round */
+  return LAMP+d*light.on;
+}
+function updateLight(dt){
+  var src=null,i,b;
+  for(i=0;i<balls.length;i++){b=balls[i];if(b.t>=8&&(!src||b.t>src.t||(b.t===src.t&&b.id<src.id)))src=b;}
+  if(src){var k=light.on<.05?1:Math.min(1,dt*10);light.x+=(src.x-light.x)*k;light.y+=(src.y-light.y)*k;light.t=src.t;light.id=src.id;}
+  light.on+=((src?1:0)-light.on)*Math.min(1,dt*(src?3.5:2.2)); if(!src&&light.on<.01)light.on=0;
+}
+function drawLight(){   /* the light's pool on the sky, then again, stronger, on the brass of the walls and the floor */
+  var P=light.on>0?POOL[light.t]:null; if(!P)return;
+  var k=light.t===MAXT?1.35:1,a=light.on*(light.t===MAXT?1:(light.t===9?.8:.62));
+  ctx.save(); boxPath(); ctx.clip(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=a; ctx.translate(light.x,light.y); img(P,k); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(BOX.x-3,BOX.y,5,BOX.h); ctx.rect(BOX.x+BOX.w-2,BOX.y,5,BOX.h); ctx.rect(BOX.x,FLOOR-2,BOX.w,5); ctx.clip();
+  ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=Math.min(1,a*1.5); ctx.translate(light.x,light.y); img(P,k); ctx.restore();
+  ctx.globalAlpha=1;
+}
 function ringOn(r,rot,ga,front){   /* the Planet's ring: the far half behind the body, the near half in front, wobbling a little as it rolls */
   var a0=front?0:Math.PI,a1=front?Math.PI:TAU;
   ctx.save(); ctx.rotate(-.3+(REDUCED?0:.2*Math.sin(rot*.5)));
@@ -1797,6 +1833,10 @@ function drawBall(x,y,r,t,rot,b){
   if(t===6)ringOn(r,rot,ga,false);
   ctx.rotate(rot); img(S,k); ctx.rotate(-rot);
   if(lit&&SHD){var la=lightAngle(x,y);ctx.rotate(la);img(SHD,ks);ctx.rotate(-la);}
+  if(lit&&light.on>0&&y>BOX.y-30&&RIM[light.t]){   /* the light's colour on the side that faces it, fading with distance */
+    var lx=light.x-x,ly=light.y-y,ra=light.on*LIGHT_POW[light.t]/(1+(lx*lx+ly*ly)/48000);
+    if(ra>.04){var rr=Math.atan2(ly,lx)+Math.PI/2;ctx.globalCompositeOperation='lighter';ctx.globalAlpha=ga*Math.min(1,ra);ctx.rotate(rr);img(RIM[light.t],ks);ctx.rotate(-rr);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=ga;}
+  }
   if(t===6)ringOn(r,rot,ga,true);
   else if(t===8)flareOn(r,tw,ga);
   else if(t===9)shellsOn(r,tw,ga);
@@ -1887,7 +1927,7 @@ function render(){
   ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(bgLayer,0,0);
   var sx=(Math.random()-.5)*shake,sy=(Math.random()-.5)*shake;
   ctx.setTransform(dpr*scl,0,0,dpr*scl,dpr*(offX+sx*scl),dpr*(offY+sy*scl));
-  drawBox(); drawAmbient(); drawWash(); drawLine(); drawHint(); drawAim();
+  drawBox(); drawAmbient(); drawLight(); drawWash(); drawLine(); drawHint(); drawAim();
   drawGhosts();
   ctx.save(); ctx.beginPath(); ctx.rect(BOX.x-1,0,BOX.w+2,FLOOR+1); ctx.clip();   /* rings, flares and halos stop at the walls and the floor */
   for(var i=0;i<balls.length;i++){var b=balls[i];drawPiece(b.x,b.y,b.r*b.scale,b.t,b.rot,b);}

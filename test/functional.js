@@ -747,5 +747,17 @@ async function playToGameOver(g) {
   for (let k = 0; k < 20; k++) g.step(16.67);
   check(!g.dbg().faulted && g.dbg().n >= 6, 'every tier draws without a fault (' + g.dbg().n + ' bodies on the board)');
 
+  // light: the brightest body lights the rest (also kept at the end)
+  g = boot(new Map()); await settle(); g.step(16.67);
+  const lampA = g.dbg().lamp, norm = a => Math.atan2(Math.sin(a), Math.cos(a));
+  g.window.__place(100, 500, 8); for (let k = 0; k < 90; k++) g.step(16.67); q = g.dbg();
+  check(q.light.t === 8 && q.light.on > .95, 'a Star on the board becomes the light');
+  check(Math.abs(norm(g.window.__lightAngle(q.light.x + 100, q.light.y) + Math.PI / 2)) < .05 && Math.abs(norm(g.window.__lightAngle(q.light.x, q.light.y + 100))) < .05, 'bodies turn their lit side to it: one on its right faces left, one below it faces up');
+  check(Math.abs(g.window.__lightAngle(316, 70) - lampA) < 1e-9, 'the next-piece slot in the HUD keeps the lamp');
+  g.window.__place(250, 400, 10); for (let k = 0; k < 30; k++) g.step(16.67);
+  check(g.dbg().light.t === 10, 'a Sun outshines the Star');
+  g.reset(); for (let k = 0; k < 200; k++) g.step(16.67); q = g.dbg();
+  check(q.light.on === 0 && Math.abs(q.lamp - lampA) < 1e-9, 'with no bright body left the light fades and the lamp is back');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });
