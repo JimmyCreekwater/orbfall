@@ -111,7 +111,7 @@ typed; `u` counts every move undone by any rescue), `revives` is the lifetime re
 `modes = {casual:{best,bestTier,games,sum}, rush:{…}}` holds the per-mode stats (`best`, `games`
 and `sum` at the top level stay as the overall figures; a save without `modes` migrates into
 Casual), `top` keeps 20 entries per mode, `opt` is the settings block
-(`{mute, sfx, music, haptics, aim, mode, online, name}`; unknown or mistyped values fall back to
+(`{mute, sfx, music, haptics, aim, mode, online, name, faces}`; unknown or mistyped values fall back to
 defaults),
 and `live` is the in-progress run (`{b:[[x,y,px,py,t]…], s, n, c, bt, d, u, uf, v, m, sd, q, x5,
 x10, rs}`, where `sd`/`q` are the seed and how many pieces it has dealt, `x5`/`x10` whether the paid
@@ -346,6 +346,19 @@ measured through an offline render as in item 4: the Sun's ignition is the loude
 of full scale (no clipping), the drone sits near 0.04 RMS under merges that peak near 0.1, and the hole's
 burst peaks at 0.46. Not seen on a phone, not heard by anyone.
 
+## Faces (a setting, shipped 2026-11-12)
+The owner's call when the WOW pass was agreed: faces on the orbs, but behind a switch, so the game keeps its
+look unless a player (a child, most likely) asks for them. `opt.faces`, off by default, sixth switch in the
+settings sheet. With it on `drawBall()` ends with `faceOn(r, b)`: two eyes and a mouth in ink, a handful of
+small paths, no gradients. The face keeps itself upright while the surface rolls (`faceLife`: every bit of
+roll tips `b.fa` and it rights itself), and the pupils look at the nearest orb of the same size, the one it
+could merge with, or at the piece in the hand when it has no match (`lkx`, `lky`), which also happens to hint
+at merges. `mood(b)` reads the rest from what is happening: calm (a small smile, a blink now and then), glad
+(just made), falling (wide eyes, an "o"), squashed (eyes shut on landing), worried (over the line), afraid (a
+black hole is feeding, `fear`), glum (the run is over; not in the share picture, which shows the board as it
+was, `shotting`). Bodies drawn under 9 px (the orrery, the smallest pieces in the next slot) go without. The
+black hole never has one. Seen in desktop Chromium on 2026-11-12.
+
 ## Your orrery (WOW pass item 6, shipped 2026-11-12)
 A reason to come back beyond the score: the game remembers every body ever made on the device. `save.found` is
 a bitmask, bits 0 to 10 for the sizes and bit 11 (`HOLE_BIT`) for the black hole. `find(i)` sets a bit the
@@ -538,8 +551,8 @@ and particle counts in `fx`.
 
 ## Settings (shipped 2026-09-24)
 A second bottom sheet, opened from the scores sheet header. Switches for music, sound effects,
-haptics and the aim guide, plus the Casual / Rush pair, all in `opt` and persisted with the
-save. The bar's sound button is a master mute (`opt.mute`) over both music and effects; `m` on
+haptics, the aim guide, the online board and (since 2026-11-12, off by default) faces, plus the
+Casual / Rush pair, all in `opt` and persisted with the save. The bar's sound button is a master mute (`opt.mute`) over both music and effects; `m` on
 a keyboard toggles it. `setOpt(k, v)` → `applyOpts()` → `persist()` is the only write path;
 `applyOpts` also starts or stops the music and, before the first drop of a run, applies a mode
 change to the current run. Sheets pause physics and the Rush clock. Reduced motion drops the

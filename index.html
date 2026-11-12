@@ -455,13 +455,14 @@ var holesDue=0,holeFlash=0,holeAt=null;   // black holes owed beyond the one in 
 var scene=null,drone=null;   // a set piece in progress (the first Sun of a run); the black hole's voice
 var HOLE_BIT=TIERS.length,FOUND_N=TIERS.length+1,FOUND_ALL=(1<<(TIERS.length+1))-1;   // the orrery: the eleven sizes and the black hole, one bit each in save.found
 var shot=null;   // the picture of the finished run: {blob, file, url, name}, made when the game-over card appears
+var fear=false,shotting=false;   // faces: a black hole is feeding; the share picture is being painted (it shows the board as it was, not glum)
 var runFound=[],foundKnown=false,orr=false,orSeen=0,orFresh=0,orAt=0;   // found for the first time this run; the save carried a record; the orrery is being drawn; what it last showed, what is new since, and when it opened
 var hitT=0,cam={z:0,v:0,x:LW/2,y:BOX.y+BOX.h/2},waves=[],rpx=0,rpy=0;   // weight: the hold left to run; the camera's punch (zoom, its speed, where it centres); ripples; a rippled point
 var Q=0,qMs=16.7,qBad=0,qGood=0;   // the quality dial: 0 everything, 1 lighter, 2 plain; the smoothed frame time; seconds spent slow and smooth
 var DOTS={};               // glow sprites for sparks, one per colour, made on first use
 var nameOn=false,nameNext=null,seedBoxOn=false,shareOn=false,viewSeed=null,drift=[],seedBusy=false;   // the name gate, the seed and share boxes, the board's seed, merge motes
 var dirty=false,lastFlush=0,filter='all',loaded=false;
-var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual',online:true,name:''};   // persisted in the save as opt
+var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual',online:true,name:'',faces:false};   // persisted in the save as opt
 var opt=copy(OPT_DEFAULTS),swEls={};
 var save={best:0,bestTier:0,games:0,sum:0,revives:0,top:[],runs:[],live:null,opt:opt,modes:newModes(),hintedInstall:false,cid:'',sent:{casual:0,rush:0},seedSent:{},found:0};
 function newModes(){return {casual:{best:0,bestTier:0,games:0,sum:0},rush:{best:0,bestTier:0,games:0,sum:0}};}
@@ -1403,7 +1404,8 @@ var OPTS=[
   ['sfx','Sound effects','Merges, landings, the danger tick'],
   ['haptics','Haptics','Vibration on merges and landings'],
   ['aim','Aim guide','Landing line and circle under the piece'],
-  ['online','Online board','Your name and best score go to the shared board']
+  ['online','Online board','Your name and best score go to the shared board'],
+  ['faces','Faces','Eyes and a mouth on every orb']
 ];
 function buildOpts(){
   optListEl.innerHTML=''; swEls={};
@@ -1612,7 +1614,7 @@ function drawShot(){
   var W=SHOT_W,H=SHOT_H,K=SHOT_K,c=mkCanvas(W*K,H*K),x=c.getContext&&c.getContext('2d'); if(!x)return null;
   var keep=ctx,sc=.92,ox=(W-BOX.w*sc)/2,oy=124,i,g,day,addr=pageURL().replace(/^https?:\/\//,'').replace(/\/$/,''),big=score>=100000;
   try{day=new Date().toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch(e){day=new Date().toDateString();}
-  ctx=x;
+  ctx=x; shotting=true;
   try{
     x.setTransform(K,0,0,K,0,0);
     x.fillStyle='#10231e'; x.fillRect(0,0,W,H);
@@ -1632,7 +1634,7 @@ function drawShot(){
     x.fillStyle='#8fa59a'; x.font='600 13px '+FONT; x.fillText(runSeed?((runSeed===dailySeed()?'today ':'seed ')+runSeed):'free play',24,H-38);
     x.textAlign='right'; x.fillText(day,W-24,H-38);
     if(addr){x.textAlign='center';x.fillStyle='#c9b98a';x.font='700 13px '+FONT;x.fillText(addr,W/2,H-16);}
-  }finally{ ctx=keep; }
+  }finally{ ctx=keep; shotting=false; }
   return c;
 }
 function clearShot(){ if(shot&&shot.url){try{window.URL.revokeObjectURL(shot.url);}catch(e){}} shot=null; }
@@ -1771,13 +1773,14 @@ function updateFx(dt){
     var vy=b.y-b.py;                                   /* landing: a fast fall that collapses within a frame */
     if(!b.landed&&b.lvy>2.2&&vy<b.lvy*.35){b.landed=true;land(b);}
     if(vy>2.2)b.landed=false;
-    b.lvy=vy;
+    b.lvy=vy; if(opt.faces)faceLife(b,dt);
     if(b.sq>0){b.sq*=Math.exp(-dt*11);if(b.sq<.003)b.sq=0;}
     if(b.flash>0)b.flash=Math.max(0,b.flash-dt*7);
     if(b.pop>=0){b.pop+=dt;b.scale=REDUCED?1:1-POP_OVERSHOOT*Math.exp(-b.pop*6)*Math.cos(b.pop*12);if(b.pop>1.2){b.pop=-1;b.scale=1;}}
     else b.scale+=(1-b.scale)*Math.min(1,dt*12);
   }
   updateHole(dt); droneSync(); if(holeFlash>0)holeFlash=Math.max(0,holeFlash-dt*3);
+  var hf=holeOn(); fear=!!(hf&&hf.phase!=='fall');
   updateLight(dt);
   if(adDeadline&&adTimeout&&performance.now()>adDeadline)adTimeout();   /* no answer from the ad API in time */
   if(REDUCED)shown=score; else{shown+=(score-shown)*Math.min(1,dt*ROLL);if(Math.abs(score-shown)<.6)shown=score;}
@@ -2222,6 +2225,7 @@ function drawBall(x,y,r,t,rot,b){
   if(t===6)ringOn(r,rot,ga,true);
   else if(t===8)flareOn(r,tw,ga);
   else if(t===9)shellsOn(r,tw,ga);
+  if(opt.faces&&!orr&&r>=9)faceOn(r,b);
   if(b&&b.flash>0){ctx.globalAlpha=ga*b.flash*.85;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fill();ctx.globalAlpha=ga;}
   ctx.restore();
 }
@@ -2257,6 +2261,48 @@ function drawOrrery(){
       }
     }
   }finally{ ctx=keep; orr=false; light.on=kl.on; light.x=kl.x; light.y=kl.y; light.t=kl.t; }
+}
+/* Faces (a setting, off unless asked for). A face keeps itself upright while the orb's surface rolls: every bit of
+   roll tips it and it rights itself again (fa). It looks at the nearest orb of its own size, the one it could
+   merge with, or at the piece in the hand when there is none (lkx, lky). Its mood is read from what is happening
+   to it. All vector work, a handful of small paths per orb; too small to read, an orb goes without (the orrery,
+   the smallest pieces in the next slot). */
+function faceLife(b,dt){
+  if(b.hole)return;
+  var dr=b.rot-(b.lr==null?b.rot:b.lr),k,q,best=1e9,tx=0,ty=0,d; b.lr=b.rot;
+  b.fa=Math.max(-1,Math.min(1,((b.fa||0)+dr*.7)*Math.exp(-dt*3.5)));
+  for(k=0;k<balls.length;k++){q=balls[k];if(q===b||q.t!==b.t)continue;d=(q.x-b.x)*(q.x-b.x)+(q.y-b.y)*(q.y-b.y);if(d<best){best=d;tx=q.x-b.x;ty=q.y-b.y;}}
+  if(best===1e9&&cur){tx=aimX-b.x;ty=HOVER_Y-b.y;}
+  d=Math.sqrt(tx*tx+ty*ty)||1; k=Math.min(1,dt*7);
+  b.lkx=(b.lkx||0)+(tx/d-(b.lkx||0))*k; b.lky=(b.lky||0)+(ty/d-(b.lky||0))*k;
+}
+function mood(b){   /* 0 calm, 1 glad (just made), 2 falling, 3 squashed, 4 worried (over the line), 5 afraid (a black hole is feeding), 6 glum (the run is over) */
+  if(!b||b.age==null)return fear?5:0;
+  if(state==='over'&&!shotting)return 6;
+  if(fear)return 5;
+  if(b.above>0)return 4;
+  if(b.pop>=0&&b.pop<.9)return 1;
+  if(b.sq>.02)return 3;
+  if(!b.landed&&b.lvy>3)return 2;
+  return 0;
+}
+function faceOn(r,b){
+  var m=mood(b),id=(b&&b.id)||0,ink='rgba(26,18,36,.9)',ex=r*.3,ey=-r*.1,er=r*.17,lw=Math.max(1,r*.065),my=r*.3;
+  var shut=m===3||m===6||(m<2&&!REDUCED&&((tNow*1000+id*977)%(3400+(id%7)*420))<130);   /* squeezed, glum, or a blink */
+  ctx.save(); if(b&&b.fa)ctx.rotate(b.fa);
+  ctx.lineCap='round'; ctx.lineWidth=lw; ctx.strokeStyle=ink;
+  if(m===1){ctx.beginPath();ctx.arc(-ex,ey+er*.35,er*.85,Math.PI*1.15,Math.PI*1.85);ctx.stroke();ctx.beginPath();ctx.arc(ex,ey+er*.35,er*.85,Math.PI*1.15,Math.PI*1.85);ctx.stroke();}
+  else if(shut){ctx.beginPath();ctx.moveTo(-ex-er*.7,ey);ctx.lineTo(-ex+er*.7,ey);ctx.moveTo(ex-er*.7,ey);ctx.lineTo(ex+er*.7,ey);ctx.stroke();}
+  else{var wide=m>=2?1.2:1,lx=((b&&b.lkx)||0)*er*.42,ly=((b&&b.lky)||0)*er*.42+(b&&b.age!=null?0:er*.18),pr=er*(m===5?.42:.55);
+    ctx.fillStyle='rgba(255,255,255,.96)'; ctx.beginPath(); ctx.arc(-ex,ey,er*wide,0,TAU); ctx.moveTo(ex+er*wide,ey); ctx.arc(ex,ey,er*wide,0,TAU); ctx.fill();
+    ctx.lineWidth=lw*.55; ctx.stroke(); ctx.lineWidth=lw;
+    ctx.fillStyle=ink; ctx.beginPath(); ctx.arc(-ex+lx,ey+ly,pr,0,TAU); ctx.moveTo(ex+lx+pr,ey+ly); ctx.arc(ex+lx,ey+ly,pr,0,TAU); ctx.fill();}
+  if(m===2||m===5){ctx.fillStyle=ink;ctx.beginPath();ctx.arc(0,my,r*(m===5?.11:.08),0,TAU);ctx.fill();}   /* an "o" */
+  else if(m===4||m===6){ctx.beginPath();ctx.arc(0,my+r*.15,r*.17,Math.PI*1.22,Math.PI*1.78);ctx.stroke();}   /* a frown */
+  else if(m===1){ctx.fillStyle=ink;ctx.beginPath();ctx.arc(0,my-r*.05,r*.17,0,Math.PI);ctx.closePath();ctx.fill();}   /* an open grin */
+  else if(m===3){ctx.beginPath();ctx.moveTo(-r*.09,my);ctx.lineTo(r*.09,my);ctx.stroke();}
+  else{ctx.beginPath();ctx.arc(0,my-r*.09,r*.17,Math.PI*.18,Math.PI*.82);ctx.stroke();}   /* a small smile */
+  ctx.restore();
 }
 function drawDanger(){   /* the orbs over the line get a coral outline that strengthens as their timer runs */
   if(warn<=0)return;

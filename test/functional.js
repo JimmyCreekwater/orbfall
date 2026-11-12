@@ -180,7 +180,7 @@ async function playToGameOver(g) {
   g = boot(os); await settle(); g.step(16.67);
   q = g.dbg();
   check(q.opt.mute === false && q.opt.sfx && q.opt.music && q.opt.haptics && q.opt.aim && q.opt.mode === 'casual', 'options default to everything on, casual mode');
-  check(q.switches === 'music=true sfx=true haptics=true aim=true online=true', 'the settings sheet shows five switches, all on');
+  check(q.switches === 'music=true sfx=true haptics=true aim=true online=true faces=false', 'the settings sheet shows six switches: the five that ship on, and faces off');
   g.fire('scores:click'); g.step(16.67); g.fire('settings:click'); g.step(16.67); q = g.dbg();
   check(q.optsOpen && !q.boardOpen && q.paused === true, 'Settings opens from the scores sheet and pauses play');
   g.fire('optsclose:click'); g.step(16.67);
@@ -197,7 +197,7 @@ async function playToGameOver(g) {
   g.window.__setOpt('aim', false); g.window.__setOpt('music', false); await settle();
   check(JSON.parse(os.get('orbfall_v2')).opt.aim === false, 'option changes are persisted at once');
   g = boot(os); await settle(); g.step(16.67); q = g.dbg();
-  check(q.opt.mute && !q.opt.haptics && !q.opt.aim && !q.opt.music && q.soundOff && q.switches === 'music=false sfx=true haptics=false aim=false online=true', 'a reload restores every option and the switches show them');
+  check(q.opt.mute && !q.opt.haptics && !q.opt.aim && !q.opt.music && q.soundOff && q.switches === 'music=false sfx=true haptics=false aim=false online=true faces=false', 'a reload restores every option and the switches show them');
   os.set('orbfall_v2', JSON.stringify(Object.assign(JSON.parse(os.get('orbfall_v2')), { opt: { mute: 'yes', mode: 'turbo', sfx: false } })));
   g = boot(os); await settle(); g.step(16.67); q = g.dbg();
   check(q.opt.mute === false && q.opt.mode === 'casual' && q.opt.sfx === false, 'malformed option values fall back to defaults, valid ones are kept');
@@ -883,6 +883,28 @@ async function playToGameOver(g) {
   g.tap(180); for (let k = 0; k < 60; k++) g.step(16.67); g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67);
   g.fire('send:click');
   check(!g.dbg().shot && g.shares.length === 1 && !g.shares[0].files && !g.dbg().faulted, 'a browser that cannot encode a canvas shares the words as before');
+
+  // faces: a setting, off by default; moods are read from what is happening to the orb
+  const fc = new Map();
+  g = boot(fc); await settle(); g.step(16.67);
+  check(g.dbg().opt.faces === false, 'faces are off unless asked for');
+  g.window.__setOpt('faces', true);
+  check(g.dbg().opt.faces === true && JSON.parse(fc.get('orbfall_v2')).opt.faces === true && g.dbg().switches.indexOf('faces=true') >= 0, 'the switch turns them on and the choice is saved');
+  const calm = g.window.__place(60, g.dbg().FLOOR - 15, 0); for (let k = 0; k < 10; k++) g.step(16.67);
+  check(g.window.__moodOf(calm) === 0, 'an orb at rest is calm');
+  g.tap(260); for (let k = 0; k < 14; k++) g.step(16.67);
+  check(g.window.__moods().indexOf(2) >= 0, 'one that is falling is wide-eyed');
+  let squashed = false; for (let k = 0; k < 60; k++) { g.step(16.67); if (g.window.__moods().indexOf(3) >= 0) squashed = true; }
+  check(squashed && g.window.__moods().every(m => m === 0), 'it squeezes its eyes shut as it lands, then settles');
+  g.window.__place(150, g.dbg().FLOOR - 15, 1); g.window.__place(170, g.dbg().FLOOR - 15, 1); g.step(16.67); g.step(16.67);
+  check(g.window.__moods().indexOf(1) >= 0, 'a body just made is glad');
+  const high = g.window.__place(320, g.dbg().BOXY + 30, 0); g.step(16.67);
+  check(g.window.__moodOf(high) === 4, 'one over the line is worried');
+  for (let t = 0; t <= 10; t++) g.window.__place(30 + t * 28, 330 + (t % 3) * 60, t);
+  for (let k = 0; k < 20; k++) g.step(16.67);
+  check(!g.dbg().faulted, 'every size wears a face without a fault');
+  g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67);
+  check(g.window.__moods().every(m => m === 6) && !g.dbg().faulted, 'and when the run ends they are all glum');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

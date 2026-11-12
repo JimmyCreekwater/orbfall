@@ -114,7 +114,7 @@ window.__daily=function(iso){var p=iso.split('-');return dailySeed(new Date(Date
 window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
 window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
-window.__lightAngle=lightAngle;window.__end=endGame;
+window.__lightAngle=lightAngle;window.__end=endGame;window.__moods=function(){return balls.map(mood);};window.__moodOf=function(id){for(var i=0;i<balls.length;i++)if(balls[i].id===id)return mood(balls[i]);return -1;};
 window.__note=mergeNote;window.__chord=CHORD;window.__roots=CHORD_ROOT;window.__pan=panOf;
 window.__setAdApi=function(f){adApi=f;adSound();};
 window.__adsInit=function(c,test){AD_CLIENT=c;if(test!=null)AD_TEST=test;adsInit();};
