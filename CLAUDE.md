@@ -309,6 +309,43 @@ halves the particle cap (`partsCap()`); `Q` 2 also drops contact shadows, light 
 the corona's second layer, and quarters the cap. Twenty smooth seconds earn one level back. Anything new that
 costs fill rate should take a `Q` gate.
 
+**Set pieces (item 5, shipped 2026-11-12).** Two moments are staged rather than merely played.
+
+*The first Sun of a run.* When a merge makes a Sun and the run had not reached one (`born` in the merge branch;
+undone and made again it plays again, like any reveal), `sunBorn()` starts `scene` in place of the usual
+reveal. `sceneStep()` runs first thing in `frameBody`, on real time: for `SUN_GATHER` (0.5 s) game time crawls
+at a fiftieth, the view pushes in (`SUN_PUSH`), the pocket darkens under a veil, and `drawScene()` draws the
+parents above it falling together, light streaming in and a seed of fire growing between them; the newborn
+itself is not drawn yet. Then `sunIgnite()`: the punch, the note and the name that `sunBorn` held back, the
+longest hold, three ripples (the later two carry a delay `d` in `waves`), sparks from `sceneRnd`, a flash, long
+rays (`GOD`, one soft sprite drawn twice, turning against itself) behind the Sun drawn again above the veil,
+its light flooding in from nothing (`light.on` set to 0, so every lit side swings round to face it),
+`sfxGather` before and `sfxIgnite` over the swell after, and "A Sun is born" with the merge's points under it
+(`scene.fl`: the floats `addScore` made, held back and placed with the title). `sceneHold()` blocks drops and
+the Rush clock until 0.55 s after it lights; a pause freezes the scene's clock; an undo, a restart or the Sun
+vanishing ends it. `fx()` still runs at the merge, in its old place in the `Math.random` stream: the hold
+freezes its sparks at the centre and they burst when time resumes. Under reduced motion there is no scene and
+the ordinary reveal names the Sun.
+
+*The black hole* is now drawn as one: the horizon with a thin ring of light and the far side of its disc bent
+over the top (`HSPR`, `paintHole`), and a disc of infalling light (`HDISC`, `paintDisc`) drawn squashed and
+spun (`b.spin`), the far half behind the horizon and the near half in front. While it feeds the sky dims and
+streaks of starlight spiral in (`drawHolePull`: a fixed table `HSTK` from its own generator, placed by the
+hole's own clock `flow`, fewer as `Q` rises); each orb spirals in pulled thin along its path with a smear of
+its own light behind it (`drawGhosts`; `a0`, `d0`, `se`, `dir` on the suck ghost), and the ring flares with
+every meal (`gulp`). With the board empty it no longer bursts at once: `phase:'collapse'` for `HOLE_COLLAPSE`
+(0.9 s), in which it swells, falls in on itself to a point while a ring of light closes on it, holds a beat,
+and only then `burstHole()`s, now with the long hold, the punch, three ripples and a bloom of light from where
+it was (`holeAt`). Its voice is `droneSync()`: two detuned saws and a sine an octave under them behind a low
+filter, falling in pitch with every orb eaten, diving in the collapse, silent for the beat before the burst.
+It is reconciled every frame (no hole, a pause, a hidden tab or effects off end it) and its oscillators carry
+a hard stop, so it cannot hang. Under reduced motion the hole still bursts the moment the board is empty.
+
+Both were stepped through frame by frame in desktop Chromium on 2026-11-12 with no fault, and their sounds
+measured through an offline render as in item 4: the Sun's ignition is the loudest moment in the game at 0.60
+of full scale (no clipping), the drone sits near 0.04 RMS under merges that peak near 0.1, and the hole's
+burst peaks at 0.46. Not seen on a phone, not heard by anyone.
+
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
 (`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens
@@ -322,13 +359,13 @@ The owner's reward for a hot run: every `HOLE_EVERY` (5,000) points of the run's
 black hole. `queueHole()` swaps it into the next slot and hands the displaced piece back to the sequence
 (`seqN--` on a seeded run, so a seeded run stays identical to another player's; a second hole earned while
 one is already queued waits in `holesDue`). The hole is a piece type, `HOLE_T` (−1), never a tier: `mkHole()`
-builds the ball, `drawPiece()` routes it to `drawHoleAt()` (a baked dark core and violet halo, `HSPR`, plus two
-accretion arcs that turn faster while it feeds), the merge test skips negative types, and `land()` ignores it.
+builds the ball, `drawPiece()` routes it to `drawHoleAt()` (how it looks, feeds and sounds since 2026-11-12 is
+under Set pieces in Bodies), the merge test skips negative types, and `land()` ignores it.
 Dropped, it falls like an orb (`phase:'fall'`); landed or 1.4 s old it wakes (`wakeHole`: a reveal, a ring, a
 low hum) and `updateHole()` pulls the nearest orb in, then the next, each as a `suck` ghost that streaks and
 shrinks into it over `HOLE_PULL` seconds shrinking by `HOLE_PULL_K` per orb; on arrival `eatOrb()` grows the
 hole by `HOLE_GROW` (to `HOLE_RMAX`) and scores that size's merge points, no chain. With the board empty it
-`burstHole()`s: a white flash over the pocket (`holeFlash`), the biggest shake, two bursts, rings, a boom, and
+collapses for `HOLE_COLLAPSE` seconds (not at all under reduced motion) and then `burstHole()`s: a white flash over the pocket (`holeFlash`), the biggest shake, two bursts, rings, a boom, and
 "Board cleared". While a hole is on the board nothing drops, the Rush clock waits, and the line is suspended
 (`physStep` zeroes every `above`). It rides in the undo snapshots (`hd`), the live save (a seven-element ball
 entry plus `hd`) and reduced motion (no ghosts, no flash, orbs vanish in turn). Points eaten can cross the next
@@ -611,4 +648,7 @@ address with the shell · no element id or class starts with ad, share, social, 
 because content blockers hide them · new checks go at the end of test/functional.js, because the suite replays
 one seeded run and a check in the middle moves every roll after it · new cosmetic randomness takes its own
 generator (`driftRnd`), and the `Math.random` calls already in `fx`, `puffAt`, `render` and the motes stay as
-they are, for the same reason.
+they are, for the same reason · the first Sun's set piece and the black hole's streaks roll their own
+generators (`sceneRnd`, `HSTK`), and `fx()` keeps its place in the merge branch · nothing drops and the Rush
+clock waits while a Sun gathers · the black hole's drone is reconciled by `droneSync()` every frame and stopped
+when the tab hides, never left running.

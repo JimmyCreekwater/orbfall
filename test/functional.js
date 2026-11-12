@@ -794,5 +794,40 @@ async function playToGameOver(g) {
   check(N(10, 9, 0) === N(10, 6, 0) && N(10, 9, 0) <= 96, 'and the climb stops before it turns shrill');
   check(g.window.__pan(12) < -.6 && g.window.__pan(348) > .6 && g.window.__pan(180) === 0 && g.window.__pan() === 0, 'a sound sits left or right by where it happened, and in the middle when it has no place');
 
+  // set pieces (item 5). The first Sun of a run: the world holds while its parents gather, then it lights
+  g = boot(new Map()); await settle(); g.step(16.67);
+  check(g.dbg().god, 'the long rays and the black hole\'s disc are baked with the other sprites');
+  g.window.__place(130, 420, 9); g.window.__place(230, 420, 9); g.step(16.67); q = g.dbg();
+  check(q.tiers.indexOf(10) >= 0 && q.tier === 10 && q.scene && !q.scene.lit && q.scene.parents === 2 && q.hit === 0 && q.waves === 0 && q.rings === 0 && q.floats.indexOf('Sun') < 0 && q.floats.indexOf('+55') < 0 && q.score === 55, 'two Novas make the first Sun of the run: the points are scored, and the punch, the name and the float wait for its set piece');
+  const tHold = q.tNow, dr0 = q.drops; g.tap(180); for (let k = 0; k < 12; k++) g.step(16.67); q = g.dbg();
+  check(q.tNow - tHold < .01 && q.scene && !q.scene.lit && q.camZ > 0 && q.drops === dr0, 'while they fall together game time all but stops, the view pushes in, and nothing drops');
+  let litAt = -1; for (let k = 0; k < 40 && litAt < 0; k++) { g.step(16.67); if (g.dbg().scene && g.dbg().scene.lit) litAt = k; } q = g.dbg();
+  check(litAt >= 0 && q.scene.t >= .5 && q.scene.t < .56 && q.hit > 0 && q.waves === 3 && q.flashing === 1, 'half a second in it lights: the hold, three ripples, the flash (' + q.scene.t.toFixed(3) + ' s)');
+  for (let k = 0; k < 40; k++) g.step(16.67); q = g.dbg();
+  check(q.floats.indexOf('A Sun is born') >= 0 && q.floats.indexOf('+55') >= 0 && q.light.t === 10 && q.light.on > .3, 'it is named, its points land with the name, and its light floods the pocket');
+  g.tap(60); g.step(16.67); check(g.dbg().drops === dr0 + 1, 'play goes on while the rays fade');
+  for (let k = 0; k < 200; k++) g.step(16.67); q = g.dbg();
+  check(!q.scene && q.camZ === 0 && q.state === 'play', 'and the moment ends by itself');
+  g = boot(new Map()); await settle(); g.step(16.67);
+  g.window.__place(130, 420, 9); g.window.__place(230, 420, 9); for (let k = 0; k < 8; k++) g.step(16.67);
+  check(g.dbg().scene && !g.dbg().scene.lit, 'a restart in the middle of it');
+  g.reset(); const tR = g.dbg().tNow; for (let k = 0; k < 6; k++) g.step(16.67);
+  check(!g.dbg().scene && g.dbg().tNow - tR > .08, 'clears it, and time runs again');
+  g = boot(new Map(), { reduced: true }); await settle(); g.step(16.67);
+  g.window.__place(130, 420, 9); g.window.__place(230, 420, 9); g.step(16.67); q = g.dbg();
+  check(q.tiers.indexOf(10) >= 0 && !q.scene && q.floats.indexOf('Sun') >= 0, 'under reduced motion a first Sun is an ordinary reveal');
+
+  // the black hole falls in on itself before it bursts
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  for (let d = 0; d < 4; d++) { g.tap(70 + d * 70); for (let k = 0; k < 30; k++) g.step(16.67); }
+  g.window.__score(4999); g.window.__chain(); g.tap(180); for (let k = 0; k < 40; k++) g.step(16.67); g.tap(180);
+  let colFrames = 0, minScale = 9, maxScale = 0, feedPw = 0;
+  for (let k = 0; k < 1200 && g.dbg().hole; k++) { g.step(16.67); const hq = g.dbg().hole; if (!hq) break;
+    if (hq.phase === 'feed' && hq.pw > feedPw) feedPw = hq.pw;
+    if (hq.phase === 'collapse') { colFrames++; if (hq.scale < minScale) minScale = hq.scale; if (hq.scale > maxScale) maxScale = hq.scale; } }
+  q = g.dbg();
+  check(feedPw > .5 && colFrames > 30 && maxScale > 1.1 && minScale < .05, 'with the board empty it swells, then falls in on itself to a point (' + colFrames + ' frames)');
+  check(!q.hole && q.n === 0 && q.holeFlash > 0 && q.hit > 0 && q.waves === 3 && q.floats.indexOf('Board cleared') >= 0, 'and only then bursts: the flash, the hold, three ripples');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

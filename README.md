@@ -21,7 +21,8 @@ board's Seed and Today tabs under Online ranking show everyone's best on that se
 Share and Challenge show the text with a Copy button. At game over, Rescue this run offers Undo 1 (free
 once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets two rescues, then the
 button is struck through; runs finished without any rescue wear a ✦ on the board. Every 5,000 points the
-next piece is a black hole: drop it and it swallows the board one orb at a time, scoring each, then bursts.
+next piece is a black hole: drop it and it swallows the board one orb at a time, scoring each, then falls in on
+itself and bursts. The first Sun of a run stops the world for a moment of its own.
 The ? on the play screen opens the rules and the merge ladder.
 
 Served over http(s) it is an installable web app: Android Chrome offers "Install app" (or
@@ -58,7 +59,8 @@ the master mute works; the music sequencer and its layers; Rush's shot clock, it
 records and boards; seeds deal the same pieces, survive undo and reload, start from links and
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
-and random seeds; the share box; the seed board; merge motes; the black hole; triples; the ad adapter
+and random seeds; the share box; the seed board; merge motes; the black hole and its collapse; the first Sun's
+set piece; triples; the ad adapter
 (prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, a
 blocked or offline player told why, no restart under an ad); no element name a content blocker would hide; the crash card catches a throwing frame;
 sharing, the landscape card and
