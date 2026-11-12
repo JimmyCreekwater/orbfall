@@ -76,5 +76,18 @@ function pngSize(f) {
   check(res && res.fromNetwork, 'an uncached request goes to the network');
   let handled = false; H.fetch({ request: Object.assign(new Request(BASE), { method: 'POST' }), respondWith: () => { handled = true; } });
   check(!handled, 'non-GET requests are left to the browser');
+  handled = false; H.fetch({ request: new Request('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'), respondWith: () => { handled = true; } });
+  check(!handled, 'requests to other sites (ads, the scoreboard) are left to the browser');
+  H.fetch({ request: new Request(BASE + 'privacy.html', { mode: 'navigate' }), respondWith: x => { out = x; } });
+  res = await out;
+  check(res && res.url === BASE + 'privacy.html', 'the privacy page is served as itself, not answered with the game');
+  H.fetch({ request: new Request(BASE + 'index.html', { mode: 'navigate' }), respondWith: x => { out = x; } });
+  res = await out;
+  check(res && res.url === BASE && !res.fromNetwork, 'index.html by name is still the cached shell');
+  H.fetch({ request: new Request(BASE + 'other.html', { mode: 'navigate' }), respondWith: x => { out = x; } });
+  res = await out;
+  check(res && res.fromNetwork && res.url === BASE + 'other.html', 'any other page in the folder goes to the network');
+  const priv = read('privacy.html');
+  check(/<a [^>]*id="privacy"[^>]*href="privacy\.html"/.test(html) && /href="\.\/"/.test(priv) && /adssettings\.google\.com/.test(priv), 'the settings sheet links the privacy page, which links back to the game and to the ad opt-out');
   done('pwa');
 })().catch(e => { console.error(e); process.exit(1); });

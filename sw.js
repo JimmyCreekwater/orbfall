@@ -3,8 +3,8 @@
    build when this file changes; the previous cache is deleted on activate, and skipWaiting + clients.claim mean the
    next launch is the new build. There is deliberately no forced reload, so an update never interrupts a run. */
 'use strict';
-var CACHE='orbfall-shell-0.10.0';
-var SHELL=['./','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png',
+var CACHE='orbfall-shell-0.11.0';
+var SHELL=['./','manifest.webmanifest','privacy.html','icons/icon-192.png','icons/icon-512.png',
   'icons/maskable-192.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
 
 function precache(cache,url){
@@ -29,7 +29,11 @@ self.addEventListener('activate',function(e){
 self.addEventListener('fetch',function(e){
   var req=e.request;
   if(req.method!=='GET')return;
-  /* every navigation inside the scope is the game itself: answer with the cached shell, else the network */
-  var lookup=req.mode==='navigate'?caches.match('./'):caches.match(req,{ignoreSearch:true});
+  var url=new URL(req.url),home=new URL('./',self.location.href);
+  if(url.origin!==home.origin)return;   /* ads, the scoreboard, anything off-site: straight to the network */
+  /* a navigation to the game's own address is answered with the cached shell (so a host that redirects
+     /index.html can never poison it); any other page in the folder, such as privacy.html, is an ordinary request */
+  var shell=req.mode==='navigate'&&(url.pathname===home.pathname||url.pathname===home.pathname+'index.html');
+  var lookup=shell?caches.match('./'):caches.match(req,{ignoreSearch:true});
   e.respondWith(lookup.then(function(hit){return hit||fetch(req);}));
 });

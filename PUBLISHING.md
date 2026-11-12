@@ -114,10 +114,55 @@ wrangler d1 execute orbfall-board --remote --command "DROP TABLE scores; DROP TA
 - Try the Share button from a game-over card; the link it sends should unfurl with the picture.
 - Keep the release routine: `npm run release`, then the git commands it prints. Never edit `sw.js` by hand.
 
+## Part 4: ads (rewarded only)
+
+The game never forces an ad. An undo or a rescue past the free ones asks "Watch an ad?", and only a watched ad
+unlocks it. The ads come from Google's AdSense programme for HTML5 games. All of it is built and switched off
+until the steps below are done. To see the whole flow today with Google's sample ads, add `?adtest` to the game's
+address, for example `https://NAME.github.io/orbfall/?adtest`.
+
+This is the one part that costs money: a domain, about 10 dollars a year. Google will not take a github.io
+address, because the `ads.txt` file below has to sit at the very top of a site you own.
+
+1. **Get a domain and point it at the game.** Buy one at any registrar, with privacy protection on so your name
+   is not in the public record. In the repository on GitHub: **Settings** → **Pages** → **Custom domain**, type
+   the domain, save, and add the DNS records GitHub shows at your registrar. Tick **Enforce HTTPS** when it is
+   offered. Then put the new address in the two `og:` lines of `index.html` (Part 1, step 4), and set
+   `ALLOWED_ORIGIN` in `server/wrangler.toml` to it and run `wrangler deploy`, so the scoreboard accepts it.
+   One cost of moving: scores a player's browser kept under the old address do not follow to the new one. The
+   online ranking is not affected. Move early, while few people play.
+2. **Open an AdSense account** at adsense.google.com with that domain as your site. Google asks for your real
+   name and address for payments; that stays between you and Google. In **Account** → **Settings** → **Account
+   information**, set **Seller information visibility** to **Confidential**, so the public sellers list shows a
+   number and no name.
+3. **Copy your publisher id** from the same page. It looks like `ca-pub-1234567890123456`.
+4. **Put it in four places** (or hand the id to Claude Code and say "switch the ads on in test mode"):
+   - `index.html`, in the tuning knobs: `var AD_CLIENT='ca-pub-1234567890123456';` Leave `AD_TEST=true`.
+   - `index.html`, inside `<head>`: `<meta name="google-adsense-account" content="ca-pub-1234567890123456">`
+   - a new file `ads.txt` next to `index.html`, holding one line (your number, without the `ca-`):
+     `google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0`
+   - `privacy.html`: replace `CONTACT-EMAIL-HERE` (twice, on one line) with an address people can write to,
+     such as `hello@yourdomain`. Most registrars, and Cloudflare, forward such an address to your inbox for free.
+
+   Then `npm run release` and the git commands. The release script refuses to ship if any of the four is
+   missing. From here players see Google's sample ad in place of the old placeholder, and still get their
+   reward; Settings gains a Privacy link.
+5. **Switch on the consent message.** In AdSense: **Privacy & messaging** → **European regulations** → create a
+   message, choose your site, publish. Do the same under **US state regulations**. Google's own code shows it
+   to the players it applies to; nothing changes in the game.
+6. **Wait for Google to approve the site, then apply for H5 Games Ads.** The form is linked from
+   https://developers.google.com/ad-placement/docs/signup. Both are reviews by Google, can take days to weeks,
+   and are Google's decision.
+7. **Go live.** When the H5 Games Ads approval arrives: `var AD_TEST=false;` in `index.html`, then
+   `npm run release` and the git commands. Real ads from here on.
+
+House rules that keep the account safe: never tap your own ads, and do not ask friends to. To look at the flow,
+use `?adtest`: it shows sample ads and counts for nothing.
+
 ## What the game stores and where
 
 On the phone: scores, settings and the run in progress, in the browser's local storage. On the board (only if
 connected and a name is set): player id, name, best score and size reached per mode, and the same per seed
 played. There are no accounts,
-no cookies, no analytics and no ads in this build. If you add ads later (the reward hook in `index.html` is
-the place), most ad networks will ask you to publish a privacy page saying so.
+no analytics and no cookies of the game's own. Ads are built in but off until Part 4 is done; once on,
+Google's ad service uses cookies or similar identifiers, which is what `privacy.html` tells players.

@@ -7,7 +7,8 @@ file as the design record: it captures decisions already made so they don't get 
 ## Ground rules
 - `index.html` is the whole game: inline CSS + JS, no build step, no framework, no assets.
   The only files beside it are the PWA shell (`manifest.webmanifest`, `sw.js`, `icons/`), the
-  script that drew the icons (`tools/icons.js`, run by hand, output checked in) and the tests.
+  script that drew the icons (`tools/icons.js`, run by hand, output checked in), the tests, the
+  board's worker (`server/`) and the privacy page (`privacy.html`, plus `ads.txt` once ads are on).
   Keep it that way; a bundler is not welcome.
 - Canvas 2D at 60 fps on a mid-range phone is the performance bar. Orbs are drawn from one
   pre-lit sprite per tier and the table and pocket are static layers, all rebuilt in `resize()`;
@@ -35,7 +36,8 @@ file as the design record: it captures decisions already made so they don't get 
 ## Map of index.html
 Sections in order, each marked with a `/* ---------- name ---------- */` comment:
 tuning knobs → feel knobs → world/layout → TIERS → physics constants → state → persistence →
-sound → music → game flow → undo + revive + reward hook → bottom bar → scoreboard →
+sound → music → game flow → undo + revive + reward hook (the ad adapter sits here) → bottom bar →
+scoreboard →
 settings sheet → home menu + pause sheet (with the name gate, the seed box, the share box and the help
 legend) →
 online board (with the name filter and the seed board) → share + install nudge → simulation →
@@ -130,9 +132,11 @@ remaining bridge for pre-v2 artifact saves.
 `manifest.webmanifest` (Orbfall, standalone, portrait, felt theme and background) + `sw.js` +
 `icons/` (192/512 `any` on a rounded felt tile, 192/512 `maskable` full-bleed with the orb inside
 the 80 % safe zone, 180 `apple-touch-icon`). `sw.js` precaches the shell on install (`./`,
-manifest, icons, fetched with `cache:'reload'`) and serves it cache-first; every navigation
-inside the scope is answered with the cached `./`, so hosts with clean URLs that redirect
-`/index.html` can never poison the cache. **Bump `CACHE` in `sw.js` with every shipped change**
+manifest, `privacy.html`, icons, fetched with `cache:'reload'`) and serves it cache-first; a navigation
+to the game's own address (the folder, or `index.html` by name) is answered with the cached `./`, so
+hosts with clean URLs that redirect `/index.html` can never poison the cache. Since 2026-11-12 any other
+page in the folder (`privacy.html`) is an ordinary cache-then-network request, and requests to other
+origins (ads, the scoreboard) are not touched at all. **Bump `CACHE` in `sw.js` with every shipped change**
 — installed players only get a new build when that file changes. The old cache is deleted on
 activate, `skipWaiting` + `clients.claim` make the next launch the new build, and there is no
 forced reload (an update must never interrupt a run). Registration lives in the `pwa` section
@@ -147,11 +151,11 @@ Android Chrome install prompt and the iOS 26 Home Screen install — do both onc
 The bar's undo rewinds one drop: free once per run (`UNDO_FREE_PER_RUN`), then ad-gated. Every
 drop pushes a pre-drop snapshot (balls, score, combo, next piece, the seed's place) onto a ring
 of `SNAPS_KEEP` (10); `doUndo(n)` restores the nth from the end, resets the line timers and adds
-`n` to `u`. `requestReward(grant, placement, count)` is the seam where a real rewarded-ad SDK
-goes: `placement` names the reward (`undo`, `undo5`, `undo10`, `revive`) so the SDK can pick an
-ad unit, `count` is how many ads it costs, and `grant()` runs only after the last one. Today it
-shows a cancelable placeholder countdown per placement (`AD_STUB`, seconds), with "Ad 1 of 2" on
-the box for a two-ad reward. Nothing else in the file knows about ads.
+`n` to `u`. `requestReward(grant, placement, count)` is the one seam for rewarded ads:
+`placement` names the reward (`undo`, `undo5`, `undo10`, `revive`), `count` is how many ads it costs,
+and `grant()` runs only after the last one. With no publisher id it shows a cancelable placeholder
+countdown per placement (`stubReward`, `AD_STUB` seconds, "Ad 1 of 2" on the box for a two-ad reward);
+with one it is Google's Ad Placement API (`realReward`, see Ads). Nothing else in the file knows about ads.
 
 **Rescue chooser (shipped 2026-09-25).** The game-over card's gold "Rescue this run" opens a
 chooser with four rows and their cost: Undo 1 move (free once, then an ad), Undo 5 moves (an
@@ -281,6 +285,46 @@ hole by `HOLE_GROW` (to `HOLE_RMAX`) and scores that size's merge points, no cha
 entry plus `hd`) and reduced motion (no ghosts, no flash, orbs vanish in turn). Points eaten can cross the next
 multiple and queue another hole. The legend mentions it; keep the 5,000 there in step with the knob.
 
+## Ads (adapter shipped 2026-11-12; no publisher id yet, so the placeholder still shows)
+The owner's rule: nobody is ever made to watch an ad. So ads are rewarded only, behind `requestReward`, through
+Google's Ad Placement API for HTML5 games (AdSense "H5 Games Ads"); no interstitials, no banners.
+- **Knobs.** `AD_CLIENT` (the AdSense publisher id, `ca-pub-` and 16 digits; empty keeps the placeholder),
+  `AD_TEST` (true is Google's test mode: sample ads, no earnings; it stays on until Google approves the
+  account for H5 Games Ads, so players keep getting their rewards meanwhile), `AD_WAIT_MS`, `AD_GAP_MS`,
+  `AD_RETRY`, `AD_FREQ`. `?adtest` in the address forces test mode and, with no id set, a dummy one, so the
+  whole flow can be seen on any device today.
+- **Loading.** `adsInit()` (end of `applyLoaded`) calls `adLoad()`, which injects Google's `adsbygoogle.js`
+  with its settings as attributes on the tag (`data-ad-client`, `data-adbreak-test`,
+  `data-ad-frequency-hint`) and pushes `{preloadAdBreaks:'on', sound}`; `adSound()` repeats the sound state
+  on every option change, as Google asks. A failed load (offline, an ad blocker) sets `adFail`, empties the
+  queue, answers a waiting reward at once, and is retried at the next reward. Google's page documents a
+  static tag in `<head>`; the injected one was verified against the live library, and the static tag is the
+  fallback if a reviewer ever objects.
+- **One reward** (`realReward`): "Finding an ad", then the library's `beforeReward` brings up "Watch an ad?"
+  with what it buys; the player taps Watch the ad (`showAdFn` must run inside that tap); the ad plays
+  (`adShowing`: music stopped, Escape ignored); `adViewed` grants, `adDismissed` grants nothing ("The reward
+  needs the whole ad"), and no ad means "No ad right now" with nothing used. An answer that means "not yet"
+  (`AD_RETRY`: `noAdPreloaded`, `notReady`, `other`, `timeout`) is asked again every `AD_GAP_MS` until
+  `AD_WAIT_MS` is up; a library that never answers times out the same way. The next ad of a two-ad reward is
+  asked for `AD_GAP_MS` after the first ends, never from inside the library's own callback (a re-entrant
+  request is refused, found in testing: one ad was buying Undo 10), and if it still never comes, the ad
+  already watched earns the reward.
+- **While a reward is in progress** (`adBusy`, part of `updatePause()`): no drops, and neither the keyboard
+  nor Play again can restart the run.
+- **Going live** needs three things beside the id, all checked by the release script once `AD_CLIENT` is set:
+  `ads.txt` at the site root with the publisher line, `<meta name="google-adsense-account">` in the head,
+  and `privacy.html` with a real contact address (it ships with `CONTACT-EMAIL-HERE`, unlinked). The settings
+  sheet links the privacy page only when a real id is configured. The site-root rule means a domain of the
+  owner's own: on github.io the root belongs to a different repository. A move to a new address starts every
+  player's browser-kept scores from zero, so sooner is cheaper. PUBLISHING.md Part 4 is the owner's runbook,
+  including the consent message for European players (set up in the AdSense account; Google's library shows
+  it, no code here).
+- **Verified 2026-11-12** in desktop Chromium against Google's live library in test mode: the prompt, a sample
+  ad watched to the end (granted), one closed early (not granted), Not now, and both ads of Undo 10 in
+  sequence. Not verifiable without an approved account: real fill, earnings, the consent message.
+- Open product choices, the owner's call: whether "No ad right now" should hand the reward over anyway, and a
+  one-tap flow (ask the library when the chooser opens, so the row's own tap starts the ad).
+
 ## Backlog, in order
 1. ~~**Storage adapter.**~~ Shipped 2026-09-24 — see Persistence. Functional tests cover a
    localStorage-only boot, reload, live-run restore, a localStorage that throws, and precedence.
@@ -298,8 +342,9 @@ multiple and queue another hole. The legend mentions it; keep the 5,000 there in
 6. **Hold/swap** the next piece (optional — changes the skill profile; ask the owner first).
 7. ~~**Settings**~~ Shipped 2026-09-24 (music, effects, haptics, aim guide, mode). Left/right-handed
    bar order is still open.
-8. **Ad SDK** behind `requestReward` only when there is real inventory (a portal SDK such as
-   Poki/CrazyGames, or Google's H5 game ads). Not before.
+8. ~~**Ad SDK.**~~ The adapter shipped 2026-11-12: Google's H5 Games Ads behind `requestReward`, see Ads.
+   Still owed, all on the owner's side first: a domain, an AdSense account, then `AD_CLIENT`, `ads.txt`,
+   the meta tag and the contact address, and `AD_TEST=false` once Google approves.
 9. **Time attack** as a third mode (score as much as you can in two minutes): comparable runs,
    a natural end, and the obvious daily challenge once #4 exists.
 
@@ -477,4 +522,7 @@ switches · the daily seed is the UTC date on the client and the worker · rescu
 `RESCUES_PER_RUN` per run and every chooser row counts one · `BAD_ANY`/`BAD_WORD` stay identical in
 index.html and server/worker.js · merge motes roll `driftRnd`, never `Math.random` · every inline
 wordmark has its own gradient id · a black hole never consumes a seed piece, never merges, and suspends
-the line, the clock and drops while it is on the board.
+the line, the clock and drops while it is on the board · ads are rewarded only, each behind a prompt the
+player taps, and nothing is granted unless Google reports the ad viewed · the next ad is never asked for
+from inside the library's callback · `sw.js` leaves other origins alone and answers only the game's own
+address with the shell.

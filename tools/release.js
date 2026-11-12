@@ -13,7 +13,18 @@ const version = `${ma}.${mi}.${pa}`;
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const problems = [];
 if (/orbfall\.example/.test(html)) problems.push('index.html still has the placeholder domain in its og:url / og:image tags; put your real address there (see PUBLISHING.md)');
+// ads: a publisher id in AD_CLIENT switches Google's library on, and then the rest must be in place
+const adClient = (/var AD_CLIENT='([^']*)'/.exec(html) || [])[1] || '', adTest = /var AD_TEST=true/.test(html);
+if (adClient) {
+  const pub = adClient.replace(/^ca-/, ''), readOpt = f => fs.existsSync(path.join(root, f)) ? fs.readFileSync(path.join(root, f), 'utf8') : '';
+  const line = 'google.com, ' + pub + ', DIRECT, f08c47fec0942fa0', meta = '<meta name="google-adsense-account" content="' + adClient + '">';
+  if (!/^ca-pub-\d{16}$/.test(adClient)) problems.push('AD_CLIENT should be ca-pub- followed by 16 digits');
+  if (!readOpt('ads.txt').includes(line)) problems.push('ads are on (AD_CLIENT) but ads.txt does not hold the line "' + line + '" (PUBLISHING.md, Part 4)');
+  if (!html.includes(meta)) problems.push('ads are on but the head of index.html lacks ' + meta + ' (AdSense verifies the site with it)');
+  if (/CONTACT-EMAIL-HERE/.test(readOpt('privacy.html') || 'CONTACT-EMAIL-HERE')) problems.push('ads are on but privacy.html still has the placeholder contact address');
+}
 if (problems.length) { console.error('Not releasing:\n  - ' + problems.join('\n  - ')); process.exit(1); }
+if (adClient && adTest) console.log('Note: ads are in Google test mode (AD_TEST=true): mock ads, no earnings.');
 
 pkg.version = version; fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 const swPath = path.join(root, 'sw.js'); let sw = fs.readFileSync(swPath, 'utf8');

@@ -82,6 +82,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .clean-run.show{display:block}
 .rows .clean{color:var(--gold);font-weight:800;margin-left:4px}
 .adk{color:var(--sage);font-size:13px;font-weight:600;margin:-4px 0 8px;min-height:16px}
+#adwatch{display:none;width:100%;margin-bottom:8px}
+#adwatch.show{display:block}
+#adcancel{width:100%}
+.plink{display:block;margin-top:10px;padding:8px;color:var(--sage);font-size:13px;font-weight:600;text-align:center;text-decoration:underline}
 .wm.big{height:34px;margin-bottom:14px}
 .wm.big svg{height:34px}
 .tag{color:var(--sage);font-size:14px;line-height:1.35;margin-bottom:18px}
@@ -257,6 +261,7 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 <div id="opts" role="dialog" aria-label="Settings">
   <div class="sh"><h2>Settings</h2><button id="optsclose" type="button">Done</button></div>
   <div class="optlist" id="optlist"></div>
+  <a class="plink" id="privacy" href="privacy.html" target="_blank" rel="noopener" style="display:none">Privacy</a>
 </div>
 <div id="rotate" class="veil" role="alertdialog" aria-labelledby="roth">
   <div class="card">
@@ -312,10 +317,11 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 </div>
 <div id="adbox" class="veil">
   <div class="card">
-    <h1>Ad placeholder</h1>
+    <h1 id="adh">Ad placeholder</h1>
     <div class="big" id="adn">3</div>
     <div class="adk" id="adk"></div>
-    <p>A rewarded ad would play here. The reward unlocks when it ends.</p>
+    <p id="adp">A rewarded ad would play here. The reward unlocks when it ends.</p>
+    <button class="sec ad" id="adwatch" type="button">Watch the ad</button>
     <button class="sec" id="adcancel" type="button">Cancel</button>
   </div>
 </div>
@@ -329,7 +335,7 @@ var rescueEl=$('rescue'),r1Btn=$('r1'),r5Btn=$('r5'),r10Btn=$('r10'),rclearBtn=$
 var barEl=$('bar'),soundBtn=$('sound'),undoBtn=$('undo'),scoresBtn=$('scores');
 var dimEl=$('dim'),sheetEl=$('sheet'),closeBtn=$('close'),chipsEl=$('chips'),statsEl=$('stats'),rowsEl=$('rows');
 var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips'),srcChipsEl=$('srcchips');
-var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),faultEl=$('fault'),faultBtn=$('faultbtn');
+var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),adhEl=$('adh'),adpEl=$('adp'),adWatchBtn=$('adwatch'),faultEl=$('fault'),faultBtn=$('faultbtn');
 var rotateEl=$('rotate'),shareBtn=$('share'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok'),wmEl=$('wm'),challengeBtn=$('challenge');
 var homeEl=$('home'),playBtn=$('play'),newRunBtn=$('newrun'),modesHomeEl=$('modeshome'),todayBtn=$('today'),homeScoresBtn=$('homescores'),homeSettingsBtn=$('homesettings'),homeChallengeBtn=$('homechallenge');
 var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pauseSettingsBtn=$('pausesettings'),restartBtn=$('restart'),pauseHomeBtn=$('pausehome'),home2Btn=$('home2'),wmHomeEl=$('wmhome'),wmPauseEl=$('wmpause');
@@ -337,7 +343,7 @@ var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seed
 var shareBoxEl=$('sharebox'),shareTextEl=$('sharetext'),shareCopyBtn=$('sharecopy'),shareDoneBtn=$('sharedone');
 var nameBoxEl=$('namebox'),nameInEl=$('namein'),nameWarnEl=$('namewarn'),nameGoBtn=$('namego'),wmNameEl=$('wmname'),rescueNoteEl=$('rescuenote'),rescueCapEl=$('rescuecap');
 var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;
-var nameKeepEl=$('namekeep');   // the help legend behind the HUD's question mark
+var nameKeepEl=$('namekeep'),privacyEl=$('privacy');   // the help legend behind the HUD's question mark
 var TAU=Math.PI*2;
 var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
@@ -346,6 +352,12 @@ var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
 var UNDO_FREE_PER_RUN=1;   // free undos each run; after that the reward hook gates it
 var AD_STUB_SECONDS=3;     // length of the placeholder "ad" until a real SDK is wired in
 var AD_STUB={undo:3,undo5:5,undo10:5,revive:4};   // placeholder seconds per placement; undo 10 costs two of them
+var AD_CLIENT='';          // ads: the AdSense publisher id (ca-pub-...) once approved; empty keeps the placeholder above
+var AD_TEST=true;          // with AD_CLIENT set: Google's mock ads (no requests, no earnings); false serves real ads
+var AD_WAIT_MS=6000;       // how long to wait for an ad before saying there is none (an ad blocker never answers)
+var AD_FREQ='30s';         // hint to Google: the least time between ads. Every ad here is one the player asked for, so it is short
+var AD_GAP_MS=600;         // pause before asking Google's library again: straight after an ad it is still fetching the next
+var AD_RETRY={notReady:1,noAdPreloaded:1,other:1,timeout:1};   // answers that mean "not yet" (asked again until AD_WAIT_MS is up), not "no"
 var SNAPS_KEEP=10;         // pre-drop snapshots kept for the rescue rewinds
 var RESCUES_PER_RUN=2;     // rescues of any kind a run gets at game over; then the card says so
 var REVIVE_CLEAR=8;        // a revive removes this many of the smallest orbs
@@ -413,6 +425,8 @@ var score=0,combo=0,lastMerge=-9,runBestTier=0,startBest=0,drops=0;
 var cur=null,nxt=null,aimX=LW/2,canDropAt=0,tNow=0,dragging=false;
 var state='play',paused=false,shake=0,warn=0,hint=1,nextId=1,overShownAt=0;
 var snaps=[],undosFree=UNDO_FREE_PER_RUN,undosUsed=0,revivesUsed=0,lastRec=null,adTimer=null;
+var adApi=null,adBusy=false,adShowing=false,adDeadline=0,adShow=null,adAbort=null,adTimeout=null;   // the ad API; a reward in progress; an ad on screen; the wait; the prompt; cancel; the wait's end
+var adFail=false,adsReal=false;   // Google's library failed to load (offline, a blocker); a real publisher id is configured
 var used5=false,used10=false,rescueOn=false,rescuesUsed=0;   // the paid rewinds, once each per run; the chooser; rescues taken this run
 var holesDue=0,holeFlash=0;   // black holes owed beyond the one in the next slot; the burst's white flash
 var nameOn=false,nameNext=null,seedBoxOn=false,shareOn=false,viewSeed=null,drift=[],seedBusy=false;   // the name gate, the seed and share boxes, the board's seed, merge motes
@@ -522,7 +536,7 @@ function applyLoaded(){
   }
   startBest=stat(runMode).best; bestShown=score>startBest;
   if(!window.__skipHome){ if(!nameSet()&&!window.__skipName)openNameBox(link?'play':'home'); else if(!link)openHome(); }   /* a name first, then the menu; a challenge link goes straight in */
-  updateBar(); applyOpts();
+  updateBar(); applyOpts(); adsInit();
 }
 function load(){
   store.get(KEY).then(function(v){
@@ -933,11 +947,83 @@ function tryUndo(){
   if(undosFree>0){undosFree--;doUndo(1);}
   else requestReward(function(){doUndo(1);},'undo',1);
 }
-/* Replace the body of requestReward with the ad network call. placement names the reward ('undo', 'undo5', 'undo10',
-   'revive') so the SDK can pick an ad unit; count is how many ads it costs; invoke grant() only after the last one. */
-function requestReward(grant,placement,count){
+/* The reward hook. placement names the reward ('undo', 'undo5', 'undo10', 'revive'), count is how many ads it
+   costs, and grant() runs only after the last one. With AD_CLIENT empty it is a placeholder countdown; with it set
+   (or ?adtest in the address, which loads Google's test mode with a dummy id) it is Google's Ad Placement API for
+   HTML5 games: rewarded ads only, each behind a "Watch an ad?" prompt the player taps, nothing granted unless
+   Google reports the ad as viewed, and a plain "No ad right now" when none comes (including an ad blocker, which
+   never answers: AD_WAIT_MS). If the second ad of a two-ad reward never comes, the first one earns it. */
+function requestReward(grant,placement,count){ if(adApi)realReward(grant,placement,count); else stubReward(grant,placement,count); }
+function adsInit(){
+  if(adApi)return;
+  adsReal=!!AD_CLIENT; privacyEl.style.display=adsReal?'':'none';   /* with a real publisher id the settings sheet links the privacy page */
+  try{ if(/[?&]adtest(?:[=&]|$)/.test(window.location.search||'')){ AD_TEST=true; if(!AD_CLIENT)AD_CLIENT='ca-pub-0000000000000000'; } }catch(e){}
+  if(!AD_CLIENT)return;
+  adApi=function(o){ try{ (window.adsbygoogle=window.adsbygoogle||[]).push(o); }catch(e){} };
+  adLoad();
+}
+function adLoad(){   /* Google's library, with its settings as attributes on the tag. A failed load (offline, an ad blocker) empties the queue, answers a waiting reward at once and is retried at the next one */
+  adFail=false;
+  try{
+    var sc=document.createElement('script'); sc.async=true; sc.crossOrigin='anonymous';
+    sc.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(AD_CLIENT);
+    sc.setAttribute('data-ad-client',AD_CLIENT); sc.setAttribute('data-ad-frequency-hint',AD_FREQ); if(AD_TEST)sc.setAttribute('data-adbreak-test','on');
+    sc.onerror=function(){ adFail=true; try{ if(sc.parentNode)sc.parentNode.removeChild(sc); }catch(e){} if(Array.isArray(window.adsbygoogle))window.adsbygoogle.length=0; if(adDeadline&&adTimeout)adTimeout(); };
+    (document.head||document.documentElement).appendChild(sc);
+  }catch(e){ adFail=true; return; }
+  adApi({preloadAdBreaks:'on',sound:(sfxOn()||musicOn())?'on':'off'});
+}
+function adSound(){ if(adApi)adApi({sound:(sfxOn()||musicOn())?'on':'off'}); }
+function adText(p,k,total){
+  if(total>1)return k<total?'Two short ads undo 10 moves. This is the first.':'One more short ad and the moves are undone.';
+  return {undo:'A short ad undoes your last move.',undo5:'A short ad undoes 5 moves.',revive:'A short ad clears the smallest orbs.'}[p]||'A short ad unlocks the reward.';
+}
+function adBox(mode,k,total,p){
+  adnEl.style.display='none'; adkEl.textContent=(total>1&&mode!=='none')?('Ad '+k+' of '+total):'';
+  adWatchBtn.classList.toggle('show',mode==='ask');
+  if(mode==='wait'){ adhEl.textContent='Finding an ad'; adpEl.textContent='One moment.'; adcancelBtn.textContent='Cancel'; }
+  else if(mode==='ask'){ adhEl.textContent='Watch an ad?'; adpEl.textContent=adText(p,k,total); adcancelBtn.textContent='Not now'; }
+  else { adhEl.textContent='No ad right now'; adpEl.textContent='Nothing was used. Try again in a minute.'; adcancelBtn.textContent='OK'; }
+  adboxEl.classList.add('show');
+}
+function realReward(grant,placement,count){
+  if(adBusy)return;
+  if(adFail)adLoad();
+  var total=count||1,done=0,over=false;
+  function finish(ok){
+    if(over)return; over=true; adBusy=false; adShowing=false; adDeadline=0; adShow=null; adAbort=null; adTimeout=null;
+    adWatchBtn.classList.remove('show'); adboxEl.classList.remove('show'); updatePause();
+    if(ok)grant();
+    if(state==='play')startMusic(false);
+  }
+  function none(){ adDeadline=0; if(done>0)finish(true); else adBox('none',0,total,placement); }   /* no ad came: one already watched still earns the reward */
+  function wait(){ adBox('wait',done+1,total,placement); adDeadline=performance.now()+AD_WAIT_MS; }
+  function ask(){
+    var offered=false,viewed=false,dismissed=false;
+    adApi({type:'reward',name:placement,
+      beforeReward:function(showAdFn){ if(over)return; offered=true; adDeadline=0; adShow=function(){ adShow=null; adWatchBtn.classList.remove('show'); showAdFn(); }; adBox('ask',done+1,total,placement); },
+      beforeAd:function(){ if(over)return; adShowing=true; stopMusic(.1); updatePause(); },
+      afterAd:function(){ adShowing=false; },
+      adDismissed:function(){ dismissed=true; },
+      adViewed:function(){ viewed=true; },
+      adBreakDone:function(info){
+        if(over)return;
+        if(viewed){ done++; if(done<total){ wait(); setTimeout(function(){ if(!over)ask(); },AD_GAP_MS); } else finish(true); return; }   /* the next ad is asked for a beat later, never from inside the library's own callback */
+        if(dismissed){ toast('The reward needs the whole ad'); finish(false); return; }
+        if(offered){ finish(false); return; }
+        /* no ad was ready. The library may still be fetching one (straight after an ad it always is): ask again until the wait runs out */
+        if(adDeadline&&AD_RETRY[info&&info.breakStatus]&&performance.now()+AD_GAP_MS<adDeadline){ setTimeout(function(){ if(!over&&adDeadline)ask(); },AD_GAP_MS); return; }
+        none();
+      }});
+  }
+  adBusy=true; adAbort=function(){ finish(false); }; adTimeout=function(){ if(!over)none(); };
+  updatePause(); wait(); ask();
+}
+function stubReward(grant,placement,count){
   var secs=AD_STUB[placement]||AD_STUB_SECONDS,left=count||1,total=left,n=secs;
   function label(){ adkEl.textContent=total>1?('Ad '+(total-left+1)+' of '+total):''; }
+  adhEl.textContent='Ad placeholder'; adpEl.textContent='A rewarded ad would play here. The reward unlocks when it ends.';
+  adnEl.style.display=''; adWatchBtn.classList.remove('show'); adcancelBtn.textContent='Cancel';
   adnEl.textContent=n; label(); adboxEl.classList.add('show');
   adTimer=setInterval(function(){
     n--;
@@ -972,7 +1058,7 @@ function rescueClear(){
   closeRescue(); if(rescueLeft()<=0||!canRevive())return;
   if(reviveGated())requestReward(function(){doRevive();rescueDone();},'revive',1); else {doRevive();rescueDone();}
 }
-function cancelReward(){ if(adTimer){clearInterval(adTimer);adTimer=null;} adboxEl.classList.remove('show'); updatePause(); }
+function cancelReward(){ if(adTimer){clearInterval(adTimer);adTimer=null;} if(adAbort){var f=adAbort;adAbort=null;f();return;} adboxEl.classList.remove('show'); updatePause(); }
 /* Revive: at game over, clear the REVIVE_CLEAR smallest orbs (ties: the higher one first), reset the line timers
    and resume the run. Capped per run by REVIVE_PER_RUN; free while save.revives < REVIVE_FREE, then ad-gated. */
 function reviveLeft(){return REVIVE_PER_RUN<=0||revivesUsed<REVIVE_PER_RUN;}
@@ -1067,7 +1153,7 @@ function renderBoard(){
   rowsEl.innerHTML=html;
 }
 /* One rule for pausing: the game runs only when nothing is over it. Every overlay sets its flag, then updatePause(). */
-function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||!!adTimer||faulted; }
+function updatePause(){ paused=homeOn||pauseOn||rescueOn||nameOn||seedBoxOn||shareOn||helpOn||boardOpen()||optsOpen()||!!adTimer||adBusy||faulted; }
 function openBoard(){ boardMode=runMode; boardOnline=onlineOn(); viewSeed=runSeed||activeSeed||null;   /* the sheet opens on the ranking whenever it can: the shared list is the pull */ if(filter==='seed'&&!viewSeed)filter='all'; renderBoard(); dimEl.classList.add('show'); sheetEl.classList.add('show'); updatePause(); updateBar(); syncOnline(false); syncSeed(false); }
 function closeBoard(){ dimEl.classList.remove('show'); sheetEl.classList.remove('show'); updatePause(); updateBar(); }
 function boardOpen(){return sheetEl.classList.contains('show');}
@@ -1120,8 +1206,8 @@ function syncOpts(){ for(var k in swEls)swEls[k].setAttribute('aria-checked',opt
 function setOpt(k,v){ opt[k]=v; if(k==='mode'&&state==='play'&&drops===0){runMode=v;startBest=stat(runMode).best;} applyOpts(); persist(); }   /* a mode change before the first drop applies at once */
 function applyOpts(){
   soundBtn.classList.toggle('off',opt.mute); soundBtn.setAttribute('aria-label',opt.mute?'Sound off':'Sound on');
-  syncOpts(); syncModes();
-  if(musicOn()&&state==='play')startMusic(false); else stopMusic(.2);
+  syncOpts(); syncModes(); adSound();
+  if(musicOn()&&state==='play'&&!adBusy)startMusic(false); else stopMusic(.2);
 }
 function openOpts(){ syncOpts(); sheetEl.classList.remove('show'); dimEl.classList.add('show'); optsEl.classList.add('show'); updatePause(); updateBar(); }
 function closeOpts(){ dimEl.classList.remove('show'); optsEl.classList.remove('show'); updatePause(); updateBar(); }
@@ -1381,6 +1467,7 @@ function updateFx(dt){
     else b.scale+=(1-b.scale)*Math.min(1,dt*12);
   }
   updateHole(dt); if(holeFlash>0)holeFlash=Math.max(0,holeFlash-dt*3);
+  if(adDeadline&&adTimeout&&performance.now()>adDeadline)adTimeout();   /* no answer from the ad API in time */
   if(REDUCED)shown=score; else{shown+=(score-shown)*Math.min(1,dt*ROLL);if(Math.abs(score-shown)<.6)shown=score;}
   if(!bestShown&&startBest>0&&score>startBest){bestShown=true;floats.push({x:LW/2,y:BOX.y+120,txt:'New best',l:2.2,vy:-14,big:true,age:0});sfxBest();vib([8,30,12]);}
   if(runMode==='rush'&&state==='play'&&!paused&&!rotated&&cur&&cur.ap>=1&&!holeOn()){clock-=realDt;if(clock<=0){clock=0;drop(aimX);}}   /* the shot clock runs on real time and waits for a black hole */
@@ -1718,7 +1805,7 @@ overEl.addEventListener('pointerup',function(e){
   if(state!=='over')return; if(e.target!==overEl&&e.target!==againBtn)return;
   if(performance.now()-overShownAt>350)reset();
 });
-againBtn.addEventListener('click',function(){ if(state==='over')reset(); });
+againBtn.addEventListener('click',function(){ if(state==='over'&&!adTimer&&!adBusy)reset(); });
 undoBtn.addEventListener('click',function(){audio();tryUndo();});
 reviveBtn.addEventListener('click',function(){audio();openRescue();});
 r1Btn.addEventListener('click',function(){ if(r1Btn.disabled)return; audio(); closeRescue(); if(!canUndo()||rescueLeft()<=0)return; if(undosFree>0){undosFree--;doUndo(1);rescueDone();} else requestReward(function(){doUndo(1);rescueDone();},'undo',1); });
@@ -1738,6 +1825,7 @@ settingsBtn.addEventListener('click',openOpts);
 optsCloseBtn.addEventListener('click',closeOpts);
 dimEl.addEventListener('click',closeSheets);
 adcancelBtn.addEventListener('click',cancelReward);
+adWatchBtn.addEventListener('click',function(){ if(adShow)adShow(); });   /* the tap that starts a rewarded ad */
 soundBtn.addEventListener('click',function(e){e.stopPropagation();toggleSound();});
 chipsEl.addEventListener('click',function(e){var f=e.target&&e.target.getAttribute&&e.target.getAttribute('data-f');if(f){filter=f;renderBoard();}});
 function boardChip(e){var t=e.target,ga=t&&t.getAttribute;if(!ga)return;var src=t.getAttribute('data-src');if(src==='local'||src==='online'){boardOnline=src==='online';renderBoard();return;}var m=t.getAttribute('data-m');if(m==='casual'||m==='rush'){boardMode=m;renderBoard();}}
@@ -1766,7 +1854,8 @@ pauseHomeBtn.addEventListener('click',function(){ audio(); closePause(); openHom
 home2Btn.addEventListener('click',function(){ audio(); openHome(); });
 window.addEventListener('keydown',function(e){
   if(e.target&&e.target.tagName==='INPUT')return;
-  if(e.key==='Escape'){ if(adTimer)cancelReward(); else closeSheets(); return; }
+  if(e.key==='Escape'){ if(adShowing)return; if(adTimer||adBusy)cancelReward(); else closeSheets(); return; }
+  if(adTimer||adBusy)return;   /* a reward in progress: no drops, no restart from the keyboard */
   if(e.key==='ArrowLeft')aimX=Math.max(BOX.x,aimX-14);
   else if(e.key==='ArrowRight')aimX=Math.min(BOX.x+BOX.w,aimX+14);
   else if(e.key===' '||e.key==='Enter'){ if(e.target&&e.target.tagName==='BUTTON')return; e.preventDefault();

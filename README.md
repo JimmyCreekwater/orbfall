@@ -34,9 +34,15 @@ a name for the online board. Casual is endless; Rush adds a shot clock that tigh
 score and keeps its own board. The soundtrack is generated in the page, no files, and starts
 after the first tap.
 
+Ads are rewarded only and never forced: an undo or a rescue past the free ones asks "Watch an ad?"
+first, and only a watched ad unlocks it (two for Undo 10). The adapter for Google's H5 Games Ads is
+built in and stays off until `AD_CLIENT` in `index.html` holds an AdSense publisher id; until then a
+placeholder countdown stands in. Add `?adtest` to the address to see the real flow with Google's
+sample ads.
+
 ## Publish
 `PUBLISHING.md` walks through hosting the game on GitHub Pages, standing up the online
-scoreboard on Cloudflare (`server/`), and the release routine: `npm run release`, then the git
+scoreboard on Cloudflare (`server/`), switching the ads on (Part 4), and the release routine: `npm run release`, then the git
 commands it prints. Link previews need your real address in the two `og:` tags in `index.html`;
 the release script refuses to ship the placeholder.
 
@@ -52,7 +58,9 @@ the master mute works; the music sequencer and its layers; Rush's shot clock, it
 records and boards; seeds deal the same pieces, survive undo and reload, start from links and
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
-and random seeds; the share box; the seed board; merge motes; the crash card catches a throwing frame;
+and random seeds; the share box; the seed board; merge motes; the black hole; triples; the ad adapter
+(prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, no
+restart under an ad); the crash card catches a throwing frame;
 sharing, the landscape card and
 the install nudge; the online board posts a best score once and renders the shared top; the
 manifest, icons and service worker hold together (shell precached, stale caches dropped,

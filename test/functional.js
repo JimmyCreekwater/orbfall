@@ -603,5 +603,116 @@ async function playToGameOver(g) {
   g.window.__place(130, 380, 10); g.window.__place(230, 380, 10); g.window.__place(180, 300, 10); g.step(16.67); q = g.dbg();
   check(q.n === 0 && q.score === 300, 'three Suns vanish for 300 (' + q.score + ')');
 
+  // real ads: Google's Ad Placement API behind the reward hook (a prompt first; viewed, dismissed, no ad, two ads, no answer)
+  const adCalls = [], rewardCall = () => adCalls.filter(c => c.type === 'reward').slice(-1)[0];
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  g.window.__setAdApi(o => adCalls.push(o));
+  check(adCalls.some(c => c.sound === 'on'), 'the game tells the ad API it has sound');
+  g.fire('sound:click', { stopPropagation() {} }); check(adCalls[adCalls.length - 1].sound === 'off', 'and tells it again when the sound is muted');
+  g.fire('sound:click', { stopPropagation() {} });
+  for (let d = 0; d < 12; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  await playToGameOver(g); await settle();
+  let dropsAd = g.dbg().drops, played = 0;
+  g.fire('revive:click'); g.fire('r5:click'); g.step(16.67); q = g.dbg(); let rw = rewardCall();
+  check(rw && rw.name === 'undo5' && q.adBusy && q.paused && q.adH === 'Finding an ad' && !q.adWatch, 'Undo 5 asks the API for a rewarded ad and waits, paused');
+  rw.beforeReward(() => { played++; }); q = g.dbg();
+  check(q.adH === 'Watch an ad?' && q.adWatch && q.adP.includes('5 moves') && played === 0, 'when an ad is ready the box asks first, and nothing plays until the player taps');
+  g.fire('adwatch:click'); rw.beforeAd(); q = g.dbg();
+  check(played === 1 && q.adShowing && q.paused && !q.adWatch, 'Watch the ad starts it, with the game paused underneath');
+  rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 5 && q.used5 && q.rescueLeft === 1, 'a watched ad grants the five-move rewind and counts the rescue');
+  await playToGameOver(g); await settle(); dropsAd = g.dbg().drops;
+  g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
+  check(rw.name === 'undo10' && g.dbg().adk === 'Ad 1 of 2', 'Undo 10 counts its two ads');
+  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adDismissed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'dismissed' }); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === 'over' && q.drops === dropsAd && !q.used10 && q.rescueLeft === 1, 'an ad closed early grants nothing and spends nothing');
+  g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
+  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  const rw2 = rewardCall();
+  check(rw2 !== rw && q.adBusy && q.adk === 'Ad 2 of 2' && q.state === 'over', 'after the first ad the second is asked for');
+  rw2.beforeReward(() => {}); g.fire('adwatch:click'); rw2.beforeAd(); rw2.adViewed(); rw2.afterAd(); rw2.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10 && q.rescueLeft === 0, 'both ads watched grant the ten-move rewind');
+  g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67);
+  if (g.dbg().undosFree > 0) { g.fire('undo:click'); g.step(16.67); g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); }
+  const st0 = g.dbg().state, undos0 = g.dbg().undosUsed;
+  g.fire('undo:click'); g.step(16.67); rw = rewardCall();
+  rw.adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67); q = g.dbg();
+  check(rw.name === 'undo' && q.adBusy && q.adH === 'No ad right now' && !q.adWatch && q.undosUsed === undos0, 'with no ad available the box says so and nothing is used');
+  g.fire('adcancel:click'); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === st0 && !q.adWatch, 'OK closes it');
+  g.fire('undo:click'); g.step(16.67);
+  for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
+  check(q.adBusy && q.adH === 'No ad right now', 'an ad API that never answers (an ad blocker) times out to the same message');
+  g.fire('win:keydown', { key: 'Escape' }); check(!g.dbg().adBusy, 'Escape closes it');
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  adCalls.length = 0; g.window.__setAdApi(o => adCalls.push(o));
+  for (let d = 0; d < 12; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  await playToGameOver(g); await settle(); dropsAd = g.dbg().drops;
+  g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
+  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67);
+  rewardCall().adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10, 'if the second ad never comes, the first one watched still earns the reward');
+  g = boot(new Map(), { location: { search: '?adtest', hash: '', protocol: 'https:', href: 'https://orb.test/?adtest', pathname: '/' } }); await settle(); g.step(16.67);
+  const adTag = (g.appended || []).find(n => /adsbygoogle\.js/.test(n.src || ''));
+  check(adTag && adTag.src.includes('client=ca-pub-0000000000000000') && adTag.getAttribute('data-adbreak-test') === 'on' && g.window.adsbygoogle.some(c => c.preloadAdBreaks === 'on'), '?adtest loads the Google ad library in test mode, mock ads only');
+  g = boot(new Map()); await settle(); g.step(16.67);
+  check(!(g.appended || []).length && !g.window.adsbygoogle, 'without a publisher id or ?adtest no ad code loads at all');
+
+  // the loader: a real publisher id, the privacy link, a failed load and its retry
+  for (let k = 0; k < 15; k++) g.step(16.67);
+  check(!g.dbg().privacyShown, 'without ads configured the settings sheet has no privacy link');
+  g.window.__adsInit('ca-pub-1234567890123456'); q = g.dbg();
+  const libs = () => (g.appended || []).filter(n => /adsbygoogle\.js/.test(n.src || ''));
+  check(libs().length === 1 && libs()[0].src.includes('client=ca-pub-1234567890123456') && libs()[0].getAttribute('data-ad-client') === 'ca-pub-1234567890123456' && libs()[0].getAttribute('data-adbreak-test') === 'on' && libs()[0].getAttribute('data-ad-frequency-hint') === '30s' && q.privacyShown, 'a publisher id loads the Google library for it, in test mode until AD_TEST is off, and shows the privacy link');
+  libs()[0].onerror(); check(g.dbg().adFail && g.window.adsbygoogle.length === 0, 'a failed load (offline, an ad blocker) is remembered and the queue emptied');
+  g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); g.fire('undo:click'); g.step(16.67);   // the free undo
+  g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); g.fire('undo:click'); g.step(16.67); q = g.dbg();
+  check(libs().length === 2 && q.adBusy && q.adH === 'Finding an ad' && !q.adFail, 'the next reward asks for the library again');
+  libs()[1].onerror(); q = g.dbg();
+  check(q.adBusy && q.adH === 'No ad right now' && q.adFail, 'and when it fails again the box says so at once instead of waiting');
+  g.fire('adcancel:click'); g.step(16.67); check(!g.dbg().adBusy && g.dbg().state === 'play', 'OK returns to the run');
+
+  // the live setting: AD_TEST off loads the library without the test attribute
+  g = boot(new Map()); await settle(); g.step(16.67);
+  g.window.__adsInit('ca-pub-1234567890123456', false);
+  const liveTag = (g.appended || []).find(n => /adsbygoogle\.js/.test(n.src || ''));
+  check(liveTag && liveTag.getAttribute('data-ad-client') === 'ca-pub-1234567890123456' && liveTag.getAttribute('data-adbreak-test') === null && g.dbg().privacyShown, 'with AD_TEST off the library loads for real ads, with no test attribute');
+
+  // "not yet" is asked again: straight after an ad the library is still fetching the next one
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  adCalls.length = 0; g.window.__setAdApi(o => adCalls.push(o));
+  const rewards = () => adCalls.filter(c => c.type === 'reward').length;
+  for (let d = 0; d < 12; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  await playToGameOver(g); await settle(); dropsAd = g.dbg().drops;
+  g.fire('revive:click'); g.fire('r10:click'); g.step(16.67);
+  let asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67); q = g.dbg();
+  check(rewards() === asked + 1 && q.adBusy && q.adH === 'Finding an ad', 'an answer of "no ad ready yet" is asked again instead of giving up');
+  rw = rewardCall(); rw.beforeReward(() => {}); check(g.dbg().adH === 'Watch an ad?', 'and the prompt appears when the ad arrives');
+  g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); asked = rewards(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  check(rewards() === asked + 1 && q.adBusy && q.adk === 'Ad 2 of 2' && q.adH === 'Finding an ad' && q.state === 'over', 'the second ad is asked for after the first');
+  asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67);
+  check(rewards() === asked + 1 && g.dbg().adBusy && g.dbg().state === 'over', 'and asked again while the library fetches it, with nothing granted yet');
+  rw = rewardCall(); rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10, 'two ads watched, with a wait in between, grant the ten-move rewind');
+  await playToGameOver(g); await settle();
+  g.fire('revive:click'); g.fire('r5:click'); g.step(16.67);
+  for (let k = 0; k < 400; k++) g.step(16.67);
+  asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67); q = g.dbg();
+  check(rewards() === asked && q.adBusy && q.adH === 'No ad right now', 'once the wait is up a late "not yet" is not asked again');
+  g.fire('adcancel:click'); g.step(16.67);
+
+  // nothing restarts the run under a reward in progress
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  adCalls.length = 0; g.window.__setAdApi(o => adCalls.push(o));
+  for (let d = 0; d < 6; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
+  await playToGameOver(g); await settle(); for (let k = 0; k < 40; k++) g.step(16.67);
+  const dropsOver = g.dbg().drops;
+  g.fire('revive:click'); g.fire('r5:click'); g.step(16.67);
+  g.fire('win:keydown', { key: ' ', preventDefault() {} }); g.fire('again:click'); g.step(16.67); q = g.dbg();
+  check(q.adBusy && q.state === 'over' && q.drops === dropsOver, 'while a reward is in progress neither the keyboard nor Play again restarts the run');
+  g.fire('adcancel:click'); g.step(16.67);
+  g.fire('win:keydown', { key: ' ', preventDefault() {} }); g.step(16.67);
+  check(g.dbg().state === 'play' && g.dbg().drops === 0, 'and afterwards the keyboard restarts as before');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });
