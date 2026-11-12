@@ -386,6 +386,7 @@ var DRIFT_MAX=80;          // motes shed by merges (more for bigger orbs) that d
 var HIT=[0,0,0,0,0,.03,.045,.06,.08,.1,.15];   // weight: seconds the world holds still when a body of this tier is born; none for the small ones, so play never slows
 var PUNCH=.0032,PUNCH_MAX=.03;   // the camera punches in by this much per tier above Marble, as a fraction of the view, up to the cap
 var WAVE_FROM=5;           // from this tier a merge sends a ripple through the sky
+var ROOM=1.6;              // sound: how loudly the room answers (measured: a merge's tail sits about 18 dB under the note); 0 is a dry game
 var HOLE_EVERY=5000;       // every this many points of the run, the next piece is a black hole that eats the board
 var HOLE_R0=15,HOLE_GROW=1.4,HOLE_RMAX=70;   // a black hole's radius when dropped, its growth per orb eaten, its cap
 var HOLE_PULL=.3,HOLE_PULL_K=.9;   // seconds per orb pulled in at first, shrinking by this factor with every orb
@@ -611,7 +612,7 @@ function unrecordRun(){
 function byScore(a,b){return b.s-a.s||b.d-a.d;}
 
 /* ---------- sound (synthesized, no assets) ---------- */
-var actx=null,out=null,noiseBuf=null,gestured=false;
+var actx=null,out=null,noiseBuf=null,gestured=false,rev=null,revIn=null;   // the context, the compressor everything leaves through, a second of noise, a gesture seen, the room and the send into it
 function sfxOn(){return !opt.mute&&opt.sfx;}
 function musicOn(){return !opt.mute&&opt.music;}
 /* Everything routes through one compressor so a chain of merges never clips; a second of white noise is kept for
@@ -627,6 +628,12 @@ function audio(){
       var n=actx.sampleRate|0,buf=actx.createBuffer(1,n,actx.sampleRate),d=buf.getChannelData(0);
       for(var i=0;i<n;i++)d[i]=Math.random()*2-1;
       noiseBuf=buf;
+      try{   /* space: a send into a generated room, a second and a half of decaying noise that darkens as it fades */
+        var len=Math.floor(actx.sampleRate*1.6),ir=actx.createBuffer(2,len,actx.sampleRate),ch,k;
+        for(ch=0;ch<2;ch++){var id=ir.getChannelData(ch),lp=0;for(k=0;k<len;k++){var e=Math.pow(1-k/len,2.4);lp+=((Math.random()*2-1)-lp)*(.25+.6*e);id[k]=lp*e;}}
+        rev=actx.createConvolver(); rev.buffer=ir; revIn=actx.createGain(); var ro=actx.createGain(); ro.gain.value=ROOM;
+        revIn.connect(rev); rev.connect(ro); ro.connect(out);
+      }catch(e2){rev=null;revIn=null;}
     }
     if(actx.state==='suspended')actx.resume();
   }catch(e){actx=null;}
@@ -634,40 +641,71 @@ function audio(){
   return actx;
 }
 function armed(){return !!actx;}
-function tone(f0,f1,dur,type,vol,when){
+var SEND=.14;              // the share of an ordinary sound that goes to the room
+function panOf(x){return x==null?0:Math.max(-1,Math.min(1,(x-LW/2)/(LW/2)))*.7;}   /* where a sound sits between the ears: where it happened in the pocket */
+function voiceOut(a,g,pan,send){   /* a voice's way out: placed left or right if it has a place, with a share sent to the room */
+  var node=g;
+  if(pan&&a.createStereoPanner){var p=a.createStereoPanner();p.pan.value=pan;g.connect(p);node=p;}
+  node.connect(out);
+  if(send==null)send=SEND;
+  if(send>0&&revIn){var s=a.createGain();s.gain.value=send;node.connect(s);s.connect(revIn);}
+}
+function tone(f0,f1,dur,type,vol,when,pan,send){
   if(!sfxOn())return; var a=audio(); if(!a)return;
   var t=a.currentTime+(when||0);
   var o=a.createOscillator(),g=a.createGain();
   o.type=type; o.frequency.setValueAtTime(f0,t); o.frequency.exponentialRampToValueAtTime(f1,t+dur);
   g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+.012); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-  o.connect(g); g.connect(out); o.start(t); o.stop(t+dur+.03);
+  o.connect(g); voiceOut(a,g,pan,send); o.start(t); o.stop(t+dur+.03);
 }
-function puff(vol,dur,cut0,cut1,when){
+function puff(vol,dur,cut0,cut1,when,pan,send){
   if(!sfxOn())return; var a=audio(); if(!a||!noiseBuf)return;
   var t=a.currentTime+(when||0);
   var s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();
   s.buffer=noiseBuf; f.type='lowpass'; f.frequency.setValueAtTime(cut0,t); f.frequency.exponentialRampToValueAtTime(cut1,t+dur);
   g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
-  s.connect(f); f.connect(g); g.connect(out); s.start(t); s.stop(t+dur+.02);
+  s.connect(f); f.connect(g); voiceOut(a,g,pan,send); s.start(t); s.stop(t+dur+.02);
 }
 function semis(n){return Math.pow(2,n/12);}
-function sfxMerge(t,chain){   /* pitch climbs with the tier and a semitone per chain link; big tiers add a rush and a shimmer */
-  var f=196*Math.pow(2,t/5)*semis(Math.min(chain||1,9)-1);
-  tone(f,f*1.6,.18,'triangle',.16,0); tone(f*2,f*2.6,.12,'sine',.06,.02);
-  if(t>=4)puff(.05+t*.008,.12+t*.02,1200+t*300,300,0);
-  if(t>=8)tone(f*4,f*4.5,.3,'sine',.05,.05);
+/* Merges play in key. CHORD holds the track's four bars as triads (A minor, F, C, G: the roots must match
+   CHORD_ROOT); a merge sounds a tone of the chord of the bar the music is in (or would be in, with the music off),
+   higher with the tier and one step up the chord per chain link, so a chain plays a rising phrase that fits. */
+var CHORD=[[57,60,64],[53,57,60],[60,64,67],[55,59,62]];
+function mtof(n){return 440*Math.pow(2,(n-69)/12);}
+function curBar(){return (mOn?Math.floor(mStep/16):(actx?Math.floor(actx.currentTime/(mStepLen()*16)):0))%4;}
+function chordNote(i,bar){var ch=CHORD[(bar==null?curBar():bar)%4];return ch[((i%3)+3)%3]+12*Math.floor(i/3);}   /* the i-th tone of the bar's chord, climbing */
+function mergeNote(t,chain,bar){return chordNote(Math.min(9,Math.round(Math.min(t,MAXT)*.7)+Math.min((chain||1)-1,5)),bar);}
+function sfxMerge(t,chain,x){   /* the note, a bell's edge on it, a rush of air from Orb up, weight under a Moon or better, shimmer over a Star or better */
+  var p=panOf(x),f=mtof(mergeNote(t,chain));
+  tone(f,f,.22,'triangle',.15,0,p,.22); tone(f*2,f*2,.14,'sine',.05,.01,p,.3); tone(f*3,f*3,.07,'sine',.025,0,p,.3);
+  if(t>=4)puff(.04+Math.min(t,MAXT)*.007,.12+Math.min(t,MAXT)*.02,1200+Math.min(t,MAXT)*300,300,0,p,.2);
+  if(t>=5){var s=mtof(CHORD[curBar()][0]-24),w=Math.min(t,MAXT)-5;   /* the body: the chord's root two octaves down, falling an octave, doubled an octave up for small speakers */
+    tone(s*2,s,.26+w*.03,'sine',.15+w*.02,0,p*.4,.05); tone(s*4,s*2,.16+w*.01,'triangle',.06,0,p*.4,0);}
+  if(t>=8)tone(f*4,f*4.03,.5,'sine',.035,.04,p,.6);
 }
 function sfxRelease(){tone(900,600,.04,'sine',.05,0);}
-function sfxSuck(t){var f=520*Math.pow(2,-t/9);tone(f*1.8,f*.45,.16,'sine',.09,0);puff(.04,.1,2200,300,0);}
-function sfxHoleWake(){tone(70,140,.9,'sine',.12,0);tone(140,280,.9,'triangle',.05,0);puff(.05,.9,200,1400,0);}
-function sfxHoleBurst(){tone(180,30,.7,'sine',.2,0);tone(900,60,.35,'sawtooth',.06,0);puff(.16,.8,3000,60,0);puff(.08,.4,8000,1000,.05);}
-function sfxThud(t){var f=110*Math.pow(2,-t/10);tone(f,f*.5,.11,'sine',.13,0);puff(.07,.07,900-t*40,200,0);}
+function sfxSuck(t,x,n){var f=520*Math.pow(2,-t/9)*Math.pow(.955,Math.min(n||0,24)),p=panOf(x);tone(f*1.8,f*.45,.16,'sine',.09,0,p,.3);puff(.04,.1,2200,300,0,p,.2);}   /* each orb the hole takes sounds lower than the last */
+function sfxHoleWake(){tone(70,140,.9,'sine',.12,0,0,.4);tone(140,280,.9,'triangle',.05,0,0,.4);puff(.05,.9,200,1400,0,0,.4);}
+function sfxHoleBurst(){tone(180,30,.7,'sine',.2,0,0,.5);tone(360,60,.5,'triangle',.08,0,0,.4);tone(900,60,.35,'sawtooth',.06,0,0,.5);puff(.16,.8,3000,60,0,0,.6);puff(.08,.4,8000,1000,.05,0,.6);}
+function sfxThud(t,x){var f=110*Math.pow(2,-t/10),p=panOf(x);tone(f,f*.5,.11,'sine',.13,0,p,.08);puff(.07,.07,900-t*40,200,0,p,.08);}
 function sfxUndo(){tone(420,640,.14,'sine',.1,0);}
-function sfxRevive(){tone(330,660,.22,'triangle',.12,0);tone(495,990,.26,'sine',.08,.08);puff(.08,.5,400,4000,0);}
-function sfxReveal(t){var f=262*Math.pow(2,t/6);tone(f,f,.12,'triangle',.1,0);tone(f*1.25,f*1.25,.12,'triangle',.1,.1);tone(f*1.5,f*1.5,.3,'triangle',.12,.2);tone(f*3,f*3,.4,'sine',.05,.2);}
+function sfxRevive(){tone(330,660,.22,'triangle',.12,0);tone(495,990,.26,'sine',.08,.08);puff(.08,.5,400,4000,0,0,.3);}
+function sfxReveal(t){   /* a new tier: three tones up the bar's chord and a sparkle; a Star or better also opens the chord up */
+  var i=2+Math.round(t*.5),a=mtof(chordNote(i)),b=mtof(chordNote(i+1)),c=mtof(chordNote(i+2));
+  tone(a,a,.12,'triangle',.1,0,0,.3);tone(b,b,.12,'triangle',.1,.1,0,.3);tone(c,c,.3,'triangle',.12,.2,0,.35);tone(c*2,c*2,.4,'sine',.05,.2,0,.5);
+  if(t>=8)sfxSwell(t);
+}
+function sfxSwell(t){   /* six detuned saws on the bar's chord behind a filter that opens: a held breath let go */
+  if(!sfxOn())return; var a=audio(); if(!a)return;
+  var ch=CHORD[curBar()],t0=a.currentTime,sun=t>=MAXT,dur=sun?2.4:1.5,f=a.createBiquadFilter(),g=a.createGain(),i;
+  f.type='lowpass'; f.Q.value=.8; f.frequency.setValueAtTime(260,t0); f.frequency.exponentialRampToValueAtTime(sun?3600:2400,t0+dur*.55);
+  g.gain.setValueAtTime(.0001,t0); g.gain.exponentialRampToValueAtTime(sun?.05:.035,t0+dur*.4); g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  for(i=0;i<6;i++){var o=a.createOscillator();o.type='sawtooth';o.frequency.value=mtof(ch[i%3]-12+(i>2?12:0))*(i%2?1.004:.996);o.connect(f);o.start(t0);o.stop(t0+dur+.05);}
+  f.connect(g); voiceOut(a,g,0,.6);
+}
 function sfxBest(){tone(660,880,.12,'triangle',.1,0);tone(880,1320,.25,'triangle',.1,.12);}
-function sfxTick(){tone(1400,1000,.03,'square',.035,0);}
-function sfxOver(){tone(330,300,.25,'triangle',.12,0);tone(262,240,.3,'triangle',.12,.25);tone(196,140,.55,'triangle',.12,.5);puff(.1,.6,600,80,0);}
+function sfxTick(){tone(1400,1000,.03,'square',.035,0,0,0);}
+function sfxOver(){tone(330,300,.25,'triangle',.12,0,0,.3);tone(262,240,.3,'triangle',.12,.25,0,.3);tone(196,140,.55,'triangle',.12,.5,0,.4);puff(.1,.6,600,80,0,0,.3);}
 function vib(p){   /* haptics wait for a real gesture: browsers block (and log) vibrate calls before user activation */
   if(REDUCED||!gestured||!opt.haptics)return;
   try{ if(navigator.userActivation&&!navigator.userActivation.hasBeenActive)return; if(navigator.vibrate)navigator.vibrate(p); }catch(e){}
@@ -723,6 +761,7 @@ function musicNodes(){
   mFilt=actx.createBiquadFilter(); mFilt.type='lowpass'; mFilt.frequency.value=18000; mFilt.Q.value=.7;
   mDuck=actx.createGain(); mDuck.gain.value=1;
   mBus.connect(mFilt); mFilt.connect(mDuck); mDuck.connect(out);
+  if(revIn){var ms=actx.createGain();ms.gain.value=.14;mDuck.connect(ms);ms.connect(revIn);}
   var N=24,re=new Float32Array(N),im=new Float32Array(N);
   for(var k=1;k<N;k++)re[k]=2/(k*Math.PI)*Math.sin(k*Math.PI*.25);
   mPulse=actx.createPeriodicWave(re,im);
@@ -778,7 +817,7 @@ function mCadence(){   /* game over: a soft A minor to E, the track's own full s
   for(var i=0;i<notes.length;i++){var o=actx.createOscillator(),g=actx.createGain(),t=t0+notes[i][1],d=notes[i][2];
     o.type='triangle'; o.frequency.setValueAtTime(notes[i][0],t);
     g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.06,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+d);
-    o.connect(g); g.connect(out); o.start(t); o.stop(t+d+.05);}
+    o.connect(g); voiceOut(actx,g,0,.4); o.start(t); o.stop(t+d+.05);}
 }
 
 /* ---------- game flow ---------- */
@@ -857,7 +896,7 @@ function puffAt(x,y,t){   /* dust where an orb lands */
     parts.push({x:x+dir*T.r*.6,y:y,vx:dir*s,vy:-20-Math.random()*30,l:l,ml:l,c:'rgba(143,165,154,.75)',r:1.2+Math.random()*1.5,st:false});}
   if(parts.length>partsCap())parts.splice(0,parts.length-partsCap());
 }
-function land(b){ if(b.hole)return; b.sq=REDUCED?0:SQUASH; puffAt(b.x,b.y+b.r,b.t); if(armed())sfxThud(b.t); vib(4); }
+function land(b){ if(b.hole)return; b.sq=REDUCED?0:SQUASH; puffAt(b.x,b.y+b.r,b.t); if(armed())sfxThud(b.t,b.x); vib(4); }
 /* The black hole. Crossing a multiple of HOLE_EVERY makes the next piece one (the piece it displaces is handed back
    to the sequence, so a seeded run stays a seeded run). Dropped, it falls like an orb; landed, it wakes and pulls
    the nearest orb in, then the next, quicker as it goes, growing with every meal and scoring each orb's merge
@@ -898,7 +937,7 @@ function updateHole(dt){
   v.dead=true; balls=balls.filter(function(q){return !q.dead;});
   var dur=Math.max(.09,HOLE_PULL*Math.pow(HOLE_PULL_K,h.eaten));
   if(REDUCED)eatOrb(h,v); else ghosts.push({x:v.x,y:v.y,r:v.r,t:v.t,rot:v.rot,l:1,suck:true,hole:h,dur:dur,age:0,sx:v.x,sy:v.y,sr:v.r});
-  h.tm=dur; h.eaten++; if(armed())sfxSuck(v.t);
+  h.tm=dur; h.eaten++; if(armed())sfxSuck(v.t,h.x,h.eaten);
 }
 function reveal(t,x,y){   /* the first time a run reaches a tier: its name in its colour, a slow ring, an arpeggio */
   var T=TIERS[t];
@@ -1462,14 +1501,14 @@ function physStep(){
       var t=a.t,x=c?(a.x+b.x+c.x)/3:(a.x+b.x)/2,y=c?(a.y+b.y+c.y)/3:(a.y+b.y)/2;
       if(t===MAXT){
         ghost(a); ghost(b); if(c)ghost(c);
-        addScore(c?300:200,x,y-20,true,MAXT); fx(x,y,t,true); impact(x,y,MAXT,true); sfxMerge(t+2,combo); vib([20,40,30]);
+        addScore(c?300:200,x,y-20,true,MAXT); fx(x,y,t,true); impact(x,y,MAXT,true); sfxMerge(t+2,combo,x); vib([20,40,30]);
       }else{
         var to=c?Math.min(MAXT,t+2):t+1,base=c?2*pts(t+1):pts(t);   /* a triple skips a size and scores double the next pair */
         var nb=mk(x,y,to); nb.r=TIERS[t].r; nb.pop=0; nb.flash=1; nb.scale=REDUCED?1:1-POP_OVERSHOOT;
         nb.x=Math.max(BOX.x+nb.tr,Math.min(BOX.x+BOX.w-nb.tr,nb.x)); if(nb.y+nb.tr>FLOOR)nb.y=FLOOR-nb.tr;
         nb.px=nb.x; nb.py=nb.y+2.2; balls.push(nb);
         if(to>runBestTier){runBestTier=to;reveal(to,x,y);}
-        addScore(base,x,y,!!c,to); fx(x,y,to,!!c); impact(x,y,to,!!c); sfxMerge(to,combo); vib(t>=7||c?[12,40,18]:6+t*2);
+        addScore(base,x,y,!!c,to); fx(x,y,to,!!c); impact(x,y,to,!!c); sfxMerge(to,combo,x); vib(t>=7||c?[12,40,18]:6+t*2);
         if(c)floats.push({x:x,y:y+22,txt:'triple',l:1.1,vy:-30,small:true,col:'#ffb020',age:0});
       }
     }

@@ -786,5 +786,13 @@ async function playToGameOver(g) {
   wk.window.__place(100, 400, 6); wk.window.__place(215, 400, 6); wk.step(16.67);
   check(wk.dbg().tiers.indexOf(7) >= 0 && wk.dbg().hit === 0 && wk.dbg().camV === 0 && wk.dbg().waves === 0, 'under reduced motion a big merge has no hold, punch or ripple');
 
+  // sound in key: a merge sounds a tone of the bar's chord, higher with the tier and with each chain link
+  const pc = n => ((n % 12) + 12) % 12, N = g.window.__note, CH = g.window.__chord, RT = g.window.__roots;
+  check([0, 1, 2, 3].every(b => pc(CH[b][0]) === pc(RT[b])), 'the four merge chords sit on the same roots as the bass line');
+  check([0, 1, 2, 3].every(b => { const pcs = CH[b].map(pc); for (let t = 0; t <= 12; t++) for (let c = 1; c <= 8; c++) if (pcs.indexOf(pc(N(t, c, b))) < 0) return false; return true; }), 'every merge note, at every tier and chain length, is a tone of the chord of its bar');
+  check(N(0, 1, 0) === 57 && N(10, 1, 0) > N(5, 1, 0) && N(5, 1, 0) > N(0, 1, 0) && N(3, 2, 0) > N(3, 1, 0) && N(3, 4, 0) > N(3, 3, 0), 'a Mote sounds the root, bigger bodies sound higher, and each chain link climbs a step');
+  check(N(10, 9, 0) === N(10, 6, 0) && N(10, 9, 0) <= 96, 'and the climb stops before it turns shrill');
+  check(g.window.__pan(12) < -.6 && g.window.__pan(348) > .6 && g.window.__pan(180) === 0 && g.window.__pan() === 0, 'a sound sits left or right by where it happened, and in the middle when it has no place');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });

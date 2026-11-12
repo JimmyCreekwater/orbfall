@@ -486,6 +486,27 @@ a keyboard toggles it. `setOpt(k, v)` → `applyOpts()` → `persist()` is the o
 change to the current run. Sheets pause physics and the Rush clock. Reduced motion drops the
 switch animation.
 
+## Sound with space (WOW pass item 4, shipped 2026-11-12)
+The effects used to be dry, mono and pitched by formula. Now:
+- **A room.** `audio()` builds a convolver from generated noise (1.6 s, decaying, darker as it fades; no asset)
+  on a send bus (`revIn`). Every voice leaves through `voiceOut(a, gain, pan, send)`: straight to the
+  compressor, plus a share to the room (`SEND` by default; more for bells, swells and the black hole, none for
+  the tick). `ROOM` sets how loudly the room answers. The music sends a little too.
+- **Stereo.** `panOf(x)` places a sound by where it happened in the pocket (a `StereoPannerNode`, skipped where
+  the browser has none); merges, landings and the black hole's meals pass their x.
+- **In key.** `CHORD` holds the track's four bars as triads; its roots must match `CHORD_ROOT`. `mergeNote(tier,
+  chain)` picks a tone of the chord of the bar the music is in (`curBar`; with the music off, the bar it would
+  be in), higher with the tier and one step up the chord per chain link, capped before it turns shrill, so a
+  chain plays a rising phrase that fits the track. The reveal arpeggio climbs the same chord.
+- **Weight and air.** From Moon up a merge adds the chord's root two octaves down, falling an octave, doubled an
+  octave higher as a triangle so small speakers carry it; from Star up a high shimmer; a Star or better being
+  born also opens `sfxSwell`, six detuned saws on the chord behind an opening filter.
+- The black hole's meals fall in pitch one after another (`sfxSuck(t, x, eaten)`).
+Nobody on this side can hear it, so it was measured instead, by rendering through an `OfflineAudioContext` in
+Chromium on 2026-11-12: a small merge peaks near 0.1 of full scale with its room about 18 dB under the note,
+a merge at the far left is 5 dB louder in the left ear, and a deliberate pile-up of the loudest sounds at once
+peaks at 0.45, so the compressor never lets it clip. How it actually sounds is the owner's to judge.
+
 ## Music (shipped 2026-09-24)
 A generated chiptune, no assets: eight bars in A minor at 150 BPM, two passes with a different
 lead in the back half, in the `music` section. Notes are A-minor scale degrees in the pattern

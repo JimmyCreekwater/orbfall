@@ -109,6 +109,7 @@ window.__nameOK=nameOK;window.__cleanSeed=cleanSeed;
 window.__score=function(v){score=v;shown=v;};
 window.__place=function(x,y,t){var b=mk(x,y,t);b.age=1;balls.push(b);return b.id;};
 window.__lightAngle=lightAngle;
+window.__note=mergeNote;window.__chord=CHORD;window.__roots=CHORD_ROOT;window.__pan=panOf;
 window.__setAdApi=function(f){adApi=f;adSound();};
 window.__adsInit=function(c,test){AD_CLIENT=c;if(test!=null)AD_TEST=test;adsInit();};
 window.__setSeed=function(s){activeSeed=s;};
