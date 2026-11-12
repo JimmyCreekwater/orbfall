@@ -18,7 +18,8 @@ pieces on the day's seed, which rolls over at midnight UTC), Other seed (type an
 random code; friends on the same seed get the same pieces), Scores, Settings and Challenge. The brass mark at the top of the play screen is
 the pause button. Challenge shares a link with the seed; whoever opens it plays the same sequence of pieces, and the
 board's Seed and Today tabs under Online ranking show everyone's best on that seed. Where there is no share sheet,
-Share and Challenge show the text with a Copy button. At game over, Rescue this run offers Undo 1 (free
+Share and Challenge show the text with a Copy button. Share sends a picture of the finished board with the
+score, the size reached, the seed and the day (or shows it with a Save link where the device has no share sheet). At game over, Rescue this run offers Undo 1 (free
 once), Undo 5 (an ad), Undo 10 (two ads) and Clear the smallest orbs; a run gets two rescues, then the
 button is struck through; runs finished without any rescue wear a ✦ on the board. Every 5,000 points the
 next piece is a black hole: drop it and it swallows the board one orb at a time, scoring each, then falls in on
@@ -61,7 +62,8 @@ records and boards; seeds deal the same pieces, survive undo and reload, start f
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
 and random seeds; the share box; the seed board; merge motes; the black hole and its collapse; the first Sun's
-set piece; the orrery (what is found, kept, seeded from an older save, shown and called out); triples; the ad adapter
+set piece; the orrery (what is found, kept, seeded from an older save, shown and called out); the share picture (made at
+game over, shared as a file, shown in the box, let go); triples; the ad adapter
 (prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, a
 blocked or offline player told why, no restart under an ad); no element name a content blocker would hide; the crash card catches a throwing frame;
 sharing, the landscape card and

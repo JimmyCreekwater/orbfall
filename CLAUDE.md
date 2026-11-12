@@ -638,6 +638,21 @@ After two finished runs the game-over card offers the deferred Android install p
 browser gave one, or a one-time iPhone Home Screen hint (`save.hintedInstall`), never when
 already standalone. The first-run hint gained a third line about Rush.
 
+**The share picture (WOW pass item 7, shipped 2026-11-12).** A score in a sentence is easy to scroll past; a
+board is not. When the game-over card appears `prepShot()` paints the run as a postcard (`drawShot()`, 1080 by
+1920): the final board in its brass frame on the felt, the line and the orb that crossed it outlined, under the
+mark, the score, the size reached, the player's name and the clean mark, over the seed, the day and the game's
+address (read from the page, so a move to another domain needs no change). It is painted with the game's own
+drawing code by borrowing `ctx`, encoded with `toBlob` as a JPEG of about 200 KB, and kept in `shot` as a blob,
+a `File` and an object URL. It is made then and not at the tap because a share must start inside the tap and
+encoding takes longer than that. `share()` passes it on: where `navigator.canShare({files})` says yes the
+share sheet gets the picture with the words (the address is in the words; no `url` field, which some targets
+drop beside a file); where the sheet takes no files it gets the words as before; with no sheet the share box
+shows the picture with a link that saves it (`#sendimg`, `#sendsave`). A challenge is words alone. A new run,
+an undo or a rescue lets the picture go (`clearShot()` revokes the URL). A browser whose canvas cannot encode
+simply has no picture. Seen in desktop Chromium on 2026-11-12, including the box; the share sheet itself with
+a file has not been tried on a phone.
+
 ## Safety net (shipped 2026-09-24)
 `frame()` wraps `frameBody()` in try/catch and keeps requesting frames; `window` error and
 unhandled-rejection listeners feed the same `fault()`, which pauses the run, stops the music and
@@ -674,4 +689,4 @@ they are, for the same reason · the first Sun's set piece and the black hole's 
 generators (`sceneRnd`, `HSTK`), and `fx()` keeps its place in the merge branch · nothing drops and the Rush
 clock waits while a Sun gathers · the black hole's drone is reconciled by `droneSync()` every frame and stopped
 when the tab hides, never left running · `save.found` only ever gains bits, and `drawOrrery()` hands `ctx` and
-`light` back whatever happens.
+`light` back whatever happens · the share picture is made when the card appears, never at the tap.

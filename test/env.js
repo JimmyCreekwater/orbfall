@@ -39,6 +39,7 @@ function makeEnv(storeMap, opts) {
       focus() {}, appendChild(c) { e.children.push(c); }, contains() { return false; },
       getContext() { return ctxStub(); }, setPointerCapture() {}
     };
+    if (opts.files) e.toBlob = (cb, type) => cb({ size: 4321, type });   // a canvas that can encode itself, for the share picture
     Object.defineProperty(e, 'innerHTML', { get() { return e._html; }, set(v) { e._html = v; if (v === '') e.children = []; } });
     return e;
   }
@@ -55,6 +56,10 @@ function makeEnv(storeMap, opts) {
     addEventListener(n, f) { (H['win:' + n] = H['win:' + n] || []).push(f); },
     matchMedia: () => ({ matches: !!opts.reduced })
   };
+  if (opts.files) {   // what a browser that shares files has: File, object URLs, and (below) navigator.canShare
+    win.File = function (parts, name, o) { this.name = name; this.type = o && o.type; this.size = parts[0].size; };
+    win.URL = { createObjectURL: () => 'blob:shot' + (++g.urls), revokeObjectURL: (u) => { g.revoked.push(u); } };
+  }
   if (opts.storage !== false) {
     win.storage = {
       get: (k) => storeMap.has(k) ? Promise.resolve({ key: k, value: storeMap.get(k) }) : Promise.reject(new Error('missing')),
@@ -84,7 +89,8 @@ function makeEnv(storeMap, opts) {
     clearInterval: (id) => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); }
   });
   g.step = (ms) => { now += ms; for (const t of timers.slice()) { t.acc += ms; while (t.acc >= t.ms) { t.acc -= t.ms; t.f(); } } g._raf(now); };
-  g.H = H; g.els = els; g.timers = timers;
+  g.H = H; g.els = els; g.timers = timers; g.urls = 0; g.revoked = [];
+  if (opts.files) g.navigator.canShare = (d) => !!(d && d.files && d.files.length);
   g.fire = (key, ev) => { (H[key] || []).forEach(f => f(ev || {})); };
   g.dbg = () => win.__dbg();
   g.fetchLog = [];   // the game's network calls; fetchReply decides the answer
@@ -136,6 +142,7 @@ window.__dbg=function(){
     helpOn:helpOn,ladder:(ladderEl.innerHTML.match(/<li>/g)||[]).length,helpX:HELP_X,helpY:HELP_Y,
     hole:(function(){for(var i=0;i<balls.length;i++)if(balls[i].hole)return {phase:balls[i].phase,r:Math.round(balls[i].tr),eaten:balls[i].eaten,scale:balls[i].scale,pw:balls[i].pw};return null;})(),
     scene:scene?{t:scene.t,lit:scene.lit,parents:scene.par.length}:null,god:!!(GOD&&HDISC),
+    shot:shot?{file:shot.file?shot.file.name:null,type:shot.blob?shot.blob.type:null,url:shot.url}:null,sendImg:sendImgEl.src||'',sendImgShown:sendImgEl.style.display==='block',sendSave:sendSaveEl.getAttribute('download'),sendSaveShown:sendSaveEl.style.display==='block',
     found:save.found,runFound:runFound.slice(),orcap:orCapEl.textContent,foundLine:foundEl.textContent,foundShown:foundEl.classList.contains('show'),orFresh:orFresh,orW:orEl.width,
     holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     adBusy:adBusy,adShowing:adShowing,adH:adhEl.textContent,adP:adpEl.textContent,adWatch:adWatchBtn.classList.contains('show'),

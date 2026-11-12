@@ -115,6 +115,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 #namebox{z-index:15}
 .nm.wide{width:100%;text-align:center;font-size:18px;letter-spacing:.08em;margin:6px 0 12px}
 textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-weight:600;letter-spacing:0;line-height:1.35}
+.sendimg{display:none;margin:0 auto 8px;max-width:100%;max-height:34vh;width:auto;height:auto;border-radius:12px;border:1.5px solid rgba(184,149,90,.35)}
+.sec.sendsave{display:none;text-decoration:none;margin-bottom:10px;color:var(--gold)}
 .warn{color:var(--coral);font-size:13px;font-weight:600;min-height:18px;margin:-6px 0 10px}
 .keep{display:none;color:var(--gold);font-size:13px;font-weight:600;line-height:1.35;margin:-4px 0 12px}
 .keep.show{display:block}
@@ -297,7 +299,9 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 <div id="sendbox" class="veil" role="dialog" aria-modal="true" aria-labelledby="sendh">
   <div class="card">
     <h1 id="sendh">Share</h1>
-    <p class="best">This device has no share sheet, so here is the text to copy.</p>
+    <p class="best">This device has no share sheet, so here it is to save or copy.</p>
+    <img class="sendimg" id="sendimg" alt="The finished board">
+    <a class="sec sendsave" id="sendsave" role="button">Save the picture</a>
     <textarea class="nm wide" id="sendtext" readonly rows="4" aria-label="Text to share"></textarea>
     <div class="row"><button class="sec" id="sendcopy" type="button">Copy</button><button class="sec" id="senddone" type="button">Done</button></div>
   </div>
@@ -349,7 +353,7 @@ var rotateEl=$('rotate'),shareBtn=$('send'),installBtn=$('install'),iosHintEl=$(
 var homeEl=$('home'),playBtn=$('play'),newRunBtn=$('newrun'),modesHomeEl=$('modeshome'),todayBtn=$('today'),homeScoresBtn=$('homescores'),homeSettingsBtn=$('homesettings'),homeChallengeBtn=$('homechallenge'),orEl=$('orrery'),orCapEl=$('orcap'),octx=orEl.getContext?orEl.getContext('2d'):null;
 var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pauseSettingsBtn=$('pausesettings'),restartBtn=$('restart'),pauseHomeBtn=$('pausehome'),home2Btn=$('home2'),wmHomeEl=$('wmhome'),wmPauseEl=$('wmpause');
 var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seedRandomBtn=$('seedrandom'),seedGoBtn=$('seedgo'),seedBackBtn=$('seedback');
-var shareBoxEl=$('sendbox'),shareTextEl=$('sendtext'),shareCopyBtn=$('sendcopy'),shareDoneBtn=$('senddone');
+var shareBoxEl=$('sendbox'),shareTextEl=$('sendtext'),shareCopyBtn=$('sendcopy'),shareDoneBtn=$('senddone'),sendImgEl=$('sendimg'),sendSaveEl=$('sendsave');
 var nameBoxEl=$('namebox'),nameInEl=$('namein'),nameWarnEl=$('namewarn'),nameGoBtn=$('namego'),wmNameEl=$('wmname'),rescueNoteEl=$('rescuenote'),rescueCapEl=$('rescuecap');
 var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;
 var nameKeepEl=$('namekeep'),privacyEl=$('privacy');   // the help legend behind the HUD's question mark
@@ -450,6 +454,7 @@ var used5=false,used10=false,rescueOn=false,rescuesUsed=0;   // the paid rewinds
 var holesDue=0,holeFlash=0,holeAt=null;   // black holes owed beyond the one in the next slot; the burst's white flash, and where it burst
 var scene=null,drone=null;   // a set piece in progress (the first Sun of a run); the black hole's voice
 var HOLE_BIT=TIERS.length,FOUND_N=TIERS.length+1,FOUND_ALL=(1<<(TIERS.length+1))-1;   // the orrery: the eleven sizes and the black hole, one bit each in save.found
+var shot=null;   // the picture of the finished run: {blob, file, url, name}, made when the game-over card appears
 var runFound=[],foundKnown=false,orr=false,orSeen=0,orFresh=0,orAt=0;   // found for the first time this run; the save carried a record; the orrery is being drawn; what it last showed, what is new since, and when it opened
 var hitT=0,cam={z:0,v:0,x:LW/2,y:BOX.y+BOX.h/2},waves=[],rpx=0,rpy=0;   // weight: the hold left to run; the camera's punch (zoom, its speed, where it centres); ripples; a rippled point
 var Q=0,qMs=16.7,qBad=0,qGood=0;   // the quality dial: 0 everything, 1 lighter, 2 plain; the smoothed frame time; seconds spent slow and smooth
@@ -1138,7 +1143,7 @@ function endGame(){
     cleanEl.classList.toggle('show',undosUsed===0&&revivesUsed===0);
     var fn=runFound.map(function(i){return i===HOLE_BIT?'a black hole':TIERS[i].n;});   /* what this run added to the orrery */
     foundEl.textContent=fn.length?'New in your orrery: '+(fn.length>3?fn.length+' bodies':fn.join(', ')):''; foundEl.classList.toggle('show',fn.length>0);
-    buildChain(); updateBar(); overEl.classList.add('show'); overShownAt=performance.now();
+    buildChain(); updateBar(); overEl.classList.add('show'); overShownAt=performance.now(); prepShot();
     try{againBtn.focus({preventScroll:true});}catch(e){}
   },650);
 }
@@ -1156,7 +1161,7 @@ function reset(){
   sweep(); balls=[];parts=[];floats=[];rings=[];wash=null; if(countTimer){clearInterval(countTimer);countTimer=null;}
   score=0;shown=0;bestShown=false;timeScale=1;comboAt=-9;deathAt=-9;combo=0;lastMerge=-9;runBestTier=0;drops=0;warn=0;shake=0;
   snaps=[];undosFree=UNDO_FREE_PER_RUN;undosUsed=0;revivesUsed=0;used5=false;used10=false;rescuesUsed=0;lastRec=null; closeRescue();
-  holesDue=0; holeFlash=0; holeAt=null; scene=null; runFound=[]; ghosts=ghosts.filter(function(g){return !g.suck;}); waves=[]; hitT=0; cam.z=0; cam.v=0;
+  holesDue=0; holeFlash=0; holeAt=null; scene=null; runFound=[]; clearShot(); ghosts=ghosts.filter(function(g){return !g.suck;}); waves=[]; hitT=0; cam.z=0; cam.v=0;
   runMode=linkMode||opt.mode; linkMode=null; runSeed=activeSeed; seqN=0;
   startBest=stat(runMode).best; clock=0; clockMax=0; nxt={t:roll()}; cur=null; canDropAt=tNow+.15; state='play';
   overEl.classList.remove('show'); save.live=null; dirty=false; persist(); updateBar(); startMusic(true);
@@ -1171,7 +1176,7 @@ function doUndo(n){   /* rewind n drops from the ring: the undo button is 1, the
   balls=S.b.map(copy); for(var i=0;i<balls.length;i++){balls[i].dead=false;balls[i].above=0;}
   score=S.s; combo=S.co; lastMerge=S.lm; runBestTier=S.bt; drops=S.d; nxt={t:S.n}; cur={t:S.c,ap:1}; seqN=S.q|0; holesDue=S.hd|0; holeFlash=0;
   parts=[];floats=[];rings=[];ghosts=[];wash=null;shake=0;warn=0;shown=score;timeScale=1; canDropAt=tNow; state='play'; undosUsed+=n; dirty=true; waves=[]; hitT=0;
-  scene=null; sfxUndo(); toast(n>1?'Undid '+n+' moves':'Undone'); updateBar();
+  scene=null; clearShot(); sfxUndo(); toast(n>1?'Undid '+n+' moves':'Undone'); updateBar();
 }
 function tryUndo(){
   if(!canUndo())return;
@@ -1449,7 +1454,13 @@ function optsOpen(){return optsEl.classList.contains('show');}
 function closeSheets(){ if(optsOpen())closeOpts(); else if(boardOpen())closeBoard(); else if(helpOn)closeHelp(); else if(shareOn)closeShareBox(); else if(seedBoxOn)closeSeedBox(); else if(rescueOn)closeRescue(); else if(pauseOn)closePause(); else if(state==='play'&&!homeOn&&!nameOn)openPause(); }
 function openSeedBox(){ seedBoxOn=true; seedInEl.value=dailySeed(); seedBoxEl.classList.add('show'); updatePause(); }
 function closeSeedBox(){ seedBoxOn=false; seedBoxEl.classList.remove('show'); updatePause(); }
-function openShareBox(text){ shareOn=true; shareTextEl.value=text; shareBoxEl.classList.add('show'); updatePause(); }
+function openShareBox(text,pic){
+  shareOn=true; shareTextEl.value=text;
+  var u=pic&&shot&&shot.url?shot.url:'';   /* the run's picture, with a link that saves it, when there is one */
+  sendImgEl.style.display=u?'block':'none'; sendSaveEl.style.display=u?'block':'none';
+  if(u){sendImgEl.src=u;sendSaveEl.href=u;sendSaveEl.setAttribute('download',shot.name);}
+  shareBoxEl.classList.add('show'); updatePause();
+}
 function closeShareBox(){ shareOn=false; shareBoxEl.classList.remove('show'); updatePause(); }
 function nameSet(){ return cleanName(opt.name).length>0&&nameOK(opt.name); }
 /* Why a name can fail to stick, said on the gate itself: a browser that blocks site storage (Safari's "Block all
@@ -1577,11 +1588,64 @@ function renderOnlineRows(rows){
 
 /* ---------- share, install nudge ---------- */
 function pageURL(){ var loc=window.location; return (loc&&(loc.protocol==='http:'||loc.protocol==='https:'))?loc.href.split(/[?#]/)[0]:''; }
-function shareOut(text,url){   /* the system share sheet where there is one; otherwise a box with the text and a Copy button */
+function shareOut(text,url,pic){   /* the system share sheet where there is one (with the run's picture, where it takes files); otherwise a box with the text, a Copy button, and the picture to save */
   try{
-    if(navigator.share){ navigator.share(url?{title:'Orbfall',text:text,url:url}:{title:'Orbfall',text:text}).then(function(){toast('Shared');},function(){}); return; }
+    if(navigator.share){
+      var f=pic&&shot&&shot.file, d=url?{title:'Orbfall',text:text,url:url}:{title:'Orbfall',text:text};
+      if(f&&navigator.canShare&&navigator.canShare({files:[f]}))d={title:'Orbfall',text:text,files:[f]};   /* the address is already in the text; some targets drop a url field beside a file */
+      navigator.share(d).then(function(){toast('Shared');},function(){}); return;
+    }
   }catch(e){}
-  openShareBox(text);
+  openShareBox(text,pic);
+}
+/* The run as a postcard. When the game-over card appears the final board is painted again into its own canvas, in
+   its brass frame on the felt, under the mark, the score, the size reached and the player's name, over the seed,
+   the day and the game's address. It is made then and not at the tap because a share has to start inside the
+   tap, and encoding a picture takes longer than that. Painted with the game's own drawing code by borrowing ctx. */
+var SHOT_W=360,SHOT_H=640,SHOT_K=3;
+function wordmarkOn(x,y,px){   /* the mark on a canvas: the brass orb, then the pixel letters */
+  drawBrassOrb(x+px*3.5,y+px*3.5,px*3.5);
+  ctx.fillStyle='#f3ecdc'; var gx=x+px*7+px*1.6,i,r,c;
+  for(i=0;i<WM_WORD.length;i++){var gl=WM[WM_WORD[i]];for(r=0;r<7;r++)for(c=0;c<5;c++)if(gl[r][c]==='#')pixel(gx+c*px,y+r*px,px);gx+=px*6;}
+}
+function drawShot(){
+  var W=SHOT_W,H=SHOT_H,K=SHOT_K,c=mkCanvas(W*K,H*K),x=c.getContext&&c.getContext('2d'); if(!x)return null;
+  var keep=ctx,sc=.92,ox=(W-BOX.w*sc)/2,oy=124,i,g,day,addr=pageURL().replace(/^https?:\/\//,'').replace(/\/$/,''),big=score>=100000;
+  try{day=new Date().toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});}catch(e){day=new Date().toDateString();}
+  ctx=x;
+  try{
+    x.setTransform(K,0,0,K,0,0);
+    x.fillStyle='#10231e'; x.fillRect(0,0,W,H);
+    g=x.createRadialGradient(W/2,H*.18,0,W/2,H*.18,H*.7); g.addColorStop(0,'rgba(255,214,150,.11)'); g.addColorStop(1,'rgba(255,214,150,0)'); x.fillStyle=g; x.fillRect(0,0,W,H);
+    g=x.createRadialGradient(W/2,H*.46,H*.22,W/2,H*.5,H*.82); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.45)'); x.fillStyle=g; x.fillRect(0,0,W,H);
+    x.save(); x.translate(ox,oy); x.scale(sc,sc); x.translate(-BOX.x,-BOX.y);   /* the pocket and everything in it, as it stood */
+    drawBox(); drawAmbient(); drawLight(); drawLine();
+    x.save(); x.beginPath(); x.rect(BOX.x-1,BOX.y-14,BOX.w+2,BOX.h+15); x.clip();
+    for(i=0;i<balls.length;i++){var b=balls[i];drawPiece(b.x,b.y,b.r,b.t,b.rot,b);}
+    x.restore(); drawDanger(); x.restore();
+    x.globalAlpha=1; x.textBaseline='alphabetic';
+    wordmarkOn(24,32,3.4);
+    x.textAlign='right'; x.fillStyle='#f3ecdc'; x.font='800 '+(big?36:44)+'px '+FONT; x.fillText(fmt(score),W-24,64);
+    x.font='600 14px '+FONT; x.fillStyle='#8fa59a'; x.fillText('reached '+TIERS[Math.min(runBestTier,MAXT)].n+(runMode==='rush'?' in Rush':''),W-24,86);
+    x.textAlign='left'; if(nameSet()){x.fillStyle='#c9b98a';x.font='700 15px '+FONT;x.fillText(cleanName(opt.name),24,86);}
+    if(undosUsed===0&&revivesUsed===0){x.fillStyle='#ffb020';x.font='700 13px '+FONT;x.fillText('\u2726 clean run',24,106);}
+    x.fillStyle='#8fa59a'; x.font='600 13px '+FONT; x.fillText(runSeed?((runSeed===dailySeed()?'today ':'seed ')+runSeed):'free play',24,H-38);
+    x.textAlign='right'; x.fillText(day,W-24,H-38);
+    if(addr){x.textAlign='center';x.fillStyle='#c9b98a';x.font='700 13px '+FONT;x.fillText(addr,W/2,H-16);}
+  }finally{ ctx=keep; }
+  return c;
+}
+function clearShot(){ if(shot&&shot.url){try{window.URL.revokeObjectURL(shot.url);}catch(e){}} shot=null; }
+function prepShot(){
+  clearShot();
+  var c; try{c=drawShot();}catch(e){c=null;}
+  if(!c||!c.toBlob)return;
+  var mine=shot={blob:null,file:null,url:'',name:'orbfall-'+score+'.jpg'};
+  try{ c.toBlob(function(b){
+    if(!b||shot!==mine)return; mine.blob=b;
+    try{ if(window.File)mine.file=new window.File([b],mine.name,{type:'image/jpeg'}); }catch(e){}
+    try{ if(window.URL&&window.URL.createObjectURL)mine.url=window.URL.createObjectURL(b); }catch(e){}
+  },'image/jpeg',.9); }catch(e){}
 }
 function copyShare(){   /* the async clipboard where it works, else the old select-and-copy */
   var text=shareTextEl.value,done=function(){toast('Copied');closeShareBox();};
@@ -1591,7 +1655,7 @@ function copyShare(){   /* the async clipboard where it works, else the old sele
 }
 function share(){
   var url=pageURL();
-  shareOut('I scored '+fmt(score)+' in Orbfall'+(runMode==='rush'?' (Rush)':'')+(runSeed?' on seed '+runSeed:'')+'.'+(url?' Beat it: '+url:''),url);
+  shareOut('I scored '+fmt(score)+' in Orbfall'+(runMode==='rush'?' (Rush)':'')+(runSeed?' on seed '+runSeed:'')+'.'+(url?' Beat it: '+url:''),url,state==='over');
 }
 function challenge(){   /* share a seed: this run's if it had one, else a fresh one that the next run plays */
   var seed=runSeed,mode=runMode;

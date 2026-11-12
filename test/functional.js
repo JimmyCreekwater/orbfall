@@ -860,5 +860,29 @@ async function playToGameOver(g) {
   g = boot(new Map([['orbfall_v2', JSON.stringify({ best: 900, bestTier: 6, games: 3, sum: 2000, found: 37, opt: { name: 'Glass' } })]]), { home: true, reduced: true }); await settle(); for (let k = 0; k < 10; k++) g.step(16.67); q = g.dbg();
   check(q.homeOn && q.orcap === 'Your orrery: 3 of 12 found' && !q.faulted, 'and a partial one stands still under reduced motion');
 
+  // the share picture (item 7): the finished board as a postcard, handed to the share sheet as a file
+  g = boot(new Map(), { files: true }); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  g.tap(180); for (let k = 0; k < 60; k++) g.step(16.67);
+  check(!g.dbg().shot, 'no picture is made while a run is going');
+  g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67); q = g.dbg();
+  const shotName = 'orbfall-' + q.score + '.jpg';
+  check(q.state === 'over' && q.shot && q.shot.file === shotName && q.shot.type === 'image/jpeg' && q.shot.url === 'blob:shot1' && !q.faulted, 'when the card appears the finished board is made into a picture (' + shotName + ')');
+  g.fire('send:click');
+  check(g.shares.length === 1 && g.shares[0].files && g.shares[0].files.length === 1 && g.shares[0].files[0].name === shotName && g.shares[0].text.indexOf('I scored') === 0 && !g.shares[0].url, 'Share hands the picture to the share sheet, with the words');
+  g.fire('challenge:click');
+  check(g.shares.length === 2 && !g.shares[1].files, 'a challenge is still words alone');
+  g.navigator.canShare = () => false; g.fire('send:click');
+  check(g.shares.length === 3 && !g.shares[2].files && g.shares[2].text.indexOf('I scored') === 0, 'a share sheet that takes no files gets the words alone');
+  delete g.navigator.share; g.fire('send:click'); q = g.dbg();
+  check(q.shareOn && q.sendImgShown && q.sendImg === 'blob:shot1' && q.sendSaveShown && q.sendSave === shotName, 'with no share sheet the box shows the picture, with a link that saves it');
+  g.fire('senddone:click'); g.fire('challenge:click'); q = g.dbg();
+  check(q.shareOn && !q.sendImgShown && !q.sendSaveShown, 'and a challenge there shows the words alone');
+  g.fire('senddone:click'); g.fire('again:click'); g.step(16.67);
+  check(!g.dbg().shot && g.revoked.indexOf('blob:shot1') >= 0, 'a new run lets the picture go');
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  g.tap(180); for (let k = 0; k < 60; k++) g.step(16.67); g.window.__end(); for (let k = 0; k < 5; k++) g.step(16.67);
+  g.fire('send:click');
+  check(!g.dbg().shot && g.shares.length === 1 && !g.shares[0].files && !g.dbg().faulted, 'a browser that cannot encode a canvas shares the words as before');
+
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });
