@@ -383,6 +383,9 @@ var ROLL=10;               // score counter easing rate (higher = snappier)
 var REVEAL_LIFE=2.2;       // seconds a newly reached tier's name stays up
 var MOTES=14;              // motes drifting up through the pocket; the ambient-life budget, 0 turns them off
 var DRIFT_MAX=80;          // motes shed by merges (more for bigger orbs) that drift up and fade into the sky
+var HIT=[0,0,0,0,0,.03,.045,.06,.08,.1,.15];   // weight: seconds the world holds still when a body of this tier is born; none for the small ones, so play never slows
+var PUNCH=.0032,PUNCH_MAX=.03;   // the camera punches in by this much per tier above Marble, as a fraction of the view, up to the cap
+var WAVE_FROM=5;           // from this tier a merge sends a ripple through the sky
 var HOLE_EVERY=5000;       // every this many points of the run, the next piece is a black hole that eats the board
 var HOLE_R0=15,HOLE_GROW=1.4,HOLE_RMAX=70;   // a black hole's radius when dropped, its growth per orb eaten, its cap
 var HOLE_PULL=.3,HOLE_PULL_K=.9;   // seconds per orb pulled in at first, shrinking by this factor with every orb
@@ -433,6 +436,9 @@ var adFail=false,adsReal=false;   // Google's library failed to load (offline, a
 var adAlive=false,adDead=false;   // the library has called back at least once; a reward timed out with it still silent (a blocker's stand-in script)
 var used5=false,used10=false,rescueOn=false,rescuesUsed=0;   // the paid rewinds, once each per run; the chooser; rescues taken this run
 var holesDue=0,holeFlash=0;   // black holes owed beyond the one in the next slot; the burst's white flash
+var hitT=0,cam={z:0,v:0,x:LW/2,y:BOX.y+BOX.h/2},waves=[],rpx=0,rpy=0;   // weight: the hold left to run; the camera's punch (zoom, its speed, where it centres); ripples; a rippled point
+var Q=0,qMs=16.7,qBad=0,qGood=0;   // the quality dial: 0 everything, 1 lighter, 2 plain; the smoothed frame time; seconds spent slow and smooth
+var DOTS={};               // glow sprites for sparks, one per colour, made on first use
 var nameOn=false,nameNext=null,seedBoxOn=false,shareOn=false,viewSeed=null,drift=[],seedBusy=false;   // the name gate, the seed and share boxes, the board's seed, merge motes
 var dirty=false,lastFlush=0,filter='all',loaded=false;
 var OPT_DEFAULTS={mute:false,sfx:true,music:true,haptics:true,aim:true,mode:'casual',online:true,name:''};   // persisted in the save as opt
@@ -800,17 +806,45 @@ function fx(x,y,t,big){
   var T=TIERS[t],n=REDUCED?0:(big?48:10+t*3),i;
   for(i=0;i<n;i++){
     var a=Math.random()*TAU,s=(big?320:130+t*24)*(.35+Math.random()*.65),l=.45+Math.random()*.4;
-    parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-60,l:l,ml:l,c:Math.random()<.35?T.hi:T.c,r:1.5+Math.random()*(2.5+t*.35),st:(t>=6||big)&&Math.random()<.4});
+    parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-60,l:l,ml:l,c:Math.random()<.35?T.hi:T.c,r:1.5+Math.random()*(2.5+t*.35),st:(t>=6||big)&&Math.random()<.4,g:1});
   }
-  if(parts.length>PARTS_MAX)parts.splice(0,parts.length-PARTS_MAX);
+  if(parts.length>partsCap())parts.splice(0,parts.length-partsCap());
   rings.push({x:x,y:y,r:T.r*.5,l:1,c:T.c,w:big?6:3});
   if(!REDUCED)shake=Math.min(shake+SHAKE_BASE*Math.pow(SHAKE_GROW,t)+(big?6:0),SHAKE_MAX);
   if(big||t>=7)duck(.5,.5);
   popMotes(x,y,t,big);
 }
+function partsCap(){return PARTS_MAX>>Q;}
+/* Weight. A merge that makes a Moon or better holds the world still for a heartbeat (HIT, longer for bigger), kicks
+   the camera in by a few parts in a hundred around the merge (PUNCH), and sends a ripple through the sky
+   (WAVE_FROM). Small merges get none of it. Off under reduced motion. */
+function impact(x,y,t,big){
+  if(REDUCED)return;
+  t=Math.min(t,MAXT);
+  var h=HIT[t]+(big&&t>3?.03:0); if(h>hitT)hitT=h;
+  if(t>3){var zp=Math.min(PUNCH_MAX,PUNCH*(t-3)+(big?.006:0)),cx=x*.65+(BOX.x+BOX.w/2)*.35,cy=y*.65+(BOX.y+BOX.h/2)*.35;
+    if(Math.abs(cam.z)<.002){cam.x=cx;cam.y=cy;}else{cam.x+=(cx-cam.x)*.5;cam.y+=(cy-cam.y)*.5;}
+    cam.v+=zp*37;}   /* an impulse on a damped spring: it peaks near zp and is gone in a third of a second */
+  if(t>=WAVE_FROM&&Q<2&&waves.length<3)waves.push({x:x,y:y,r:TIERS[t].r*.7,l:1,p:Math.min(1.6,.5+(t-WAVE_FROM)*.18+(big?.3:0)),b:18+(t-WAVE_FROM)*2});
+}
+function ripple(x,y){   /* where a point of the sky is drawn while ripples pass: pushed outward inside each band (result in rpx, rpy) */
+  rpx=x; rpy=y;
+  for(var i=0;i<waves.length;i++){var w=waves[i],dx=x-w.x,dy=y-w.y,d=Math.sqrt(dx*dx+dy*dy)||1,k=1-Math.abs(d-w.r)/w.b;if(k>0){k*=14*w.p*w.l;rpx+=dx/d*k;rpy+=dy/d*k;}}
+}
+/* The quality dial. The effects above cost fill rate, and the bar is 60 frames a second on a mid-range phone, so
+   the game watches its own frame time: a second and a half of slow frames sheds a level (1: no spark glow, no rim
+   light, no sky refraction, half the particles; 2: also no contact shadows, no light on the brass, no merge motes,
+   a quarter of the particles), and twenty smooth seconds earn one back. Stalls and hidden tabs are ignored. */
+function updateQuality(raw){
+  if(raw<=0||raw>.25)return;
+  qMs+=(raw*1000-qMs)*.05;
+  if(qMs>21){qGood=0;qBad+=raw;if(qBad>1.5&&Q<2){Q++;qBad=0;qMs=16.7;}}
+  else if(qMs<17.6){qBad=0;qGood+=raw;if(qGood>20&&Q>0){Q--;qGood=0;}}
+  else{qBad=0;qGood=0;}
+}
 var driftRnd=mulberry(7);   /* the motes' own dice: cosmetic scatter must not touch the seeded stream the tests replay */
 function popMotes(x,y,t,big){   /* every pop sheds motes that drift up and fade into the sky; bigger orbs shed more */
-  if(REDUCED)return;
+  if(REDUCED||Q>1)return;
   var T=TIERS[t],n=3+t*2+(big?8:0),i;
   for(i=0;i<n;i++){var a=driftRnd()*TAU,s=10+driftRnd()*30,l=3+driftRnd()*4;
     drift.push({x:x+Math.cos(a)*T.r*.5,y:y+Math.sin(a)*T.r*.5,vx:Math.cos(a)*s,vy:-6-driftRnd()*14,ph:driftRnd()*TAU,r:1+driftRnd()*(1.2+t*.25),a:.16+driftRnd()*.16,l:l,ml:l,c:T.hi});}
@@ -821,7 +855,7 @@ function puffAt(x,y,t){   /* dust where an orb lands */
   var T=TIERS[t],n=3+Math.min(4,t);
   for(var i=0;i<n;i++){var dir=Math.random()<.5?-1:1,s=40+Math.random()*60+t*8,l=.3+Math.random()*.2;
     parts.push({x:x+dir*T.r*.6,y:y,vx:dir*s,vy:-20-Math.random()*30,l:l,ml:l,c:'rgba(143,165,154,.75)',r:1.2+Math.random()*1.5,st:false});}
-  if(parts.length>PARTS_MAX)parts.splice(0,parts.length-PARTS_MAX);
+  if(parts.length>partsCap())parts.splice(0,parts.length-partsCap());
 }
 function land(b){ if(b.hole)return; b.sq=REDUCED?0:SQUASH; puffAt(b.x,b.y+b.r,b.t); if(armed())sfxThud(b.t); vib(4); }
 /* The black hole. Crossing a multiple of HOLE_EVERY makes the next piece one (the piece it displaces is handed back
@@ -893,8 +927,8 @@ function celebrate(){   /* a new best: the label pulses and a gold burst glows t
   if(REDUCED)return;
   var cx=LW/2,cy=BOX.y+200;
   for(var i=0;i<70;i++){var a=Math.random()*TAU,s=140+Math.random()*260,l=.8+Math.random()*.7;
-    parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-160,l:l,ml:l,c:Math.random()<.5?'#ffb020':'#f3ecdc',r:1.6+Math.random()*2.6,st:Math.random()<.5});}
-  if(parts.length>PARTS_MAX)parts.splice(0,parts.length-PARTS_MAX);
+    parts.push({x:cx,y:cy,vx:Math.cos(a)*s,vy:Math.sin(a)*s-160,l:l,ml:l,c:Math.random()<.5?'#ffb020':'#f3ecdc',r:1.6+Math.random()*2.6,st:Math.random()<.5,g:1});}
+  if(parts.length>partsCap())parts.splice(0,parts.length-partsCap());
   rings.push({x:cx,y:cy,r:30,l:1.6,c:'#ffb020',w:9,slow:true});
 }
 function initAmbient(){   /* motes drifting up through the pocket and a handful of stars that twinkle; both seeded */
@@ -929,7 +963,7 @@ function reset(){
   sweep(); balls=[];parts=[];floats=[];rings=[];wash=null; if(countTimer){clearInterval(countTimer);countTimer=null;}
   score=0;shown=0;bestShown=false;timeScale=1;comboAt=-9;deathAt=-9;combo=0;lastMerge=-9;runBestTier=0;drops=0;warn=0;shake=0;
   snaps=[];undosFree=UNDO_FREE_PER_RUN;undosUsed=0;revivesUsed=0;used5=false;used10=false;rescuesUsed=0;lastRec=null; closeRescue();
-  holesDue=0; holeFlash=0; ghosts=ghosts.filter(function(g){return !g.suck;});
+  holesDue=0; holeFlash=0; ghosts=ghosts.filter(function(g){return !g.suck;}); waves=[]; hitT=0; cam.z=0; cam.v=0;
   runMode=linkMode||opt.mode; linkMode=null; runSeed=activeSeed; seqN=0;
   startBest=stat(runMode).best; clock=0; clockMax=0; nxt={t:roll()}; cur=null; canDropAt=tNow+.15; state='play';
   overEl.classList.remove('show'); save.live=null; dirty=false; persist(); updateBar(); startMusic(true);
@@ -943,7 +977,7 @@ function doUndo(n){   /* rewind n drops from the ring: the undo button is 1, the
   if(state==='over'){unrecordRun();overEl.classList.remove('show');}
   balls=S.b.map(copy); for(var i=0;i<balls.length;i++){balls[i].dead=false;balls[i].above=0;}
   score=S.s; combo=S.co; lastMerge=S.lm; runBestTier=S.bt; drops=S.d; nxt={t:S.n}; cur={t:S.c,ap:1}; seqN=S.q|0; holesDue=S.hd|0; holeFlash=0;
-  parts=[];floats=[];rings=[];ghosts=[];wash=null;shake=0;warn=0;shown=score;timeScale=1; canDropAt=tNow; state='play'; undosUsed+=n; dirty=true;
+  parts=[];floats=[];rings=[];ghosts=[];wash=null;shake=0;warn=0;shown=score;timeScale=1; canDropAt=tNow; state='play'; undosUsed+=n; dirty=true; waves=[]; hitT=0;
   sfxUndo(); toast(n>1?'Undid '+n+' moves':'Undone'); updateBar();
 }
 function tryUndo(){
@@ -1428,14 +1462,14 @@ function physStep(){
       var t=a.t,x=c?(a.x+b.x+c.x)/3:(a.x+b.x)/2,y=c?(a.y+b.y+c.y)/3:(a.y+b.y)/2;
       if(t===MAXT){
         ghost(a); ghost(b); if(c)ghost(c);
-        addScore(c?300:200,x,y-20,true,MAXT); fx(x,y,t,true); sfxMerge(t+2,combo); vib([20,40,30]);
+        addScore(c?300:200,x,y-20,true,MAXT); fx(x,y,t,true); impact(x,y,MAXT,true); sfxMerge(t+2,combo); vib([20,40,30]);
       }else{
         var to=c?Math.min(MAXT,t+2):t+1,base=c?2*pts(t+1):pts(t);   /* a triple skips a size and scores double the next pair */
         var nb=mk(x,y,to); nb.r=TIERS[t].r; nb.pop=0; nb.flash=1; nb.scale=REDUCED?1:1-POP_OVERSHOOT;
         nb.x=Math.max(BOX.x+nb.tr,Math.min(BOX.x+BOX.w-nb.tr,nb.x)); if(nb.y+nb.tr>FLOOR)nb.y=FLOOR-nb.tr;
         nb.px=nb.x; nb.py=nb.y+2.2; balls.push(nb);
         if(to>runBestTier){runBestTier=to;reveal(to,x,y);}
-        addScore(base,x,y,!!c,to); fx(x,y,to,!!c); sfxMerge(to,combo); vib(t>=7||c?[12,40,18]:6+t*2);
+        addScore(base,x,y,!!c,to); fx(x,y,to,!!c); impact(x,y,to,!!c); sfxMerge(to,combo); vib(t>=7||c?[12,40,18]:6+t*2);
         if(c)floats.push({x:x,y:y+22,txt:'triple',l:1.1,vy:-30,small:true,col:'#ffb020',age:0});
       }
     }
@@ -1465,6 +1499,7 @@ function updateFx(dt){
     else gh.l-=dt*4.5;}
   ghosts=ghosts.filter(function(g){return g.l>0;});
   if(wash){wash.l-=dt*2.5;if(wash.l<=0)wash=null;}
+  if(waves.length){for(i=0;i<waves.length;i++){waves[i].r+=560*dt;waves[i].l-=dt*1.4;} waves=waves.filter(function(w){return w.l>0;});}
 
   if(!REDUCED)for(i=0;i<motes.length;i++){var mo=motes[i];mo.y-=mo.vy*dt;mo.x+=Math.sin(tNow*.6+mo.ph)*7*dt;if(mo.y<BOX.y-4){mo.y=FLOOR+4;mo.x=BOX.x+8+Math.random()*(BOX.w-16);}}
   for(i=0;i<drift.length;i++){var dm=drift[i];dm.vx*=Math.exp(-dt*1.5);dm.x+=dm.vx*dt+Math.sin(tNow*.7+dm.ph)*6*dt;dm.y+=dm.vy*dt;dm.l-=dt;}
@@ -1571,6 +1606,12 @@ var RING_DARK=mix(TIERS[6].c,.3,[0,0,0]);
    of each body and fading with distance; POOL is its glow on the sky and, stronger, on the brass. */
 var light={on:0,x:0,y:0,t:-1,id:0},RIM=[],POOL=[],LIGHT_POW=[];
 LIGHT_POW[8]=.7; LIGHT_POW[9]=.82; LIGHT_POW[10]=.95;
+function withA(c,a){return c.charAt(0)==='#'?rgba(c,a):c.replace('rgb(','rgba(').replace(')',','+a+')');}   /* '#rrggbb' or 'rgb(r,g,b)', given an alpha */
+function dotSprite(c){   /* a spark: a white-hot core in a soft halo of its colour */
+  return DOTS[c]||(DOTS[c]=sprite(16,0,Math.max(1,SPRK/2),function(sc){var g=sc.createRadialGradient(0,0,0,0,0,16);
+    g.addColorStop(0,'rgba(255,255,255,.95)'); g.addColorStop(.16,withA(c,.9)); g.addColorStop(.45,withA(c,.26)); g.addColorStop(1,withA(c,0));
+    sc.fillStyle=g; sc.beginPath(); sc.arc(0,0,16,0,TAU); sc.fill();}));
+}
 function sprite(R,pad,K,paint){var h=R+pad,c=mkCanvas(h*2*K,h*2*K),sc=c.getContext('2d');sc.setTransform(K,0,0,K,h*K,h*K);paint(sc);return {c:c,h:h};}
 function inDisc(rs,r){var a=rs()*TAU,d=Math.sqrt(rs())*r;return [Math.cos(a)*d,Math.sin(a)*d];}
 function blobOn(sc,x,y,rad,rs,n){   /* an irregular rounded patch: n points around a centre, joined by curves */
@@ -1674,7 +1715,7 @@ function paintBrass(sc){   /* the wordmark's orb: lit from the upper left, its c
   sc.lineWidth=Math.max(1.5,r*.06); sc.strokeStyle='rgba(0,0,0,.22)'; sc.stroke();
 }
 function buildSprites(){
-  var K=dpr*scl; if(K===SPRK&&SPR.length===SPRITES.length)return; SPRK=K; SPR=[]; HALO=[];
+  var K=dpr*scl; if(K===SPRK&&SPR.length===SPRITES.length)return; SPRK=K; SPR=[]; HALO=[]; DOTS={};
   for(var t=0;t<TIERS.length;t++)(function(t){ SPR.push(sprite(TIERS[t].r,2,K,function(sc){paintBody(sc,t,TIERS[t].r);})); })(t);
   SPR.push(sprite(BRASS_R,BRASS_R*.24+3,K,paintBrass));
   SHD=sprite(SHR,2,K,paintShade); SHW=sprite(SHR,SHR*.25,K,paintShadow);
@@ -1790,8 +1831,8 @@ function drawLight(){   /* the light's pool on the sky, then again, stronger, on
   var P=light.on>0?POOL[light.t]:null; if(!P)return;
   var k=light.t===MAXT?1.35:1,a=light.on*(light.t===MAXT?1:(light.t===9?.8:.62));
   ctx.save(); boxPath(); ctx.clip(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=a; ctx.translate(light.x,light.y); img(P,k); ctx.restore();
-  ctx.save(); ctx.beginPath(); ctx.rect(BOX.x-3,BOX.y,5,BOX.h); ctx.rect(BOX.x+BOX.w-2,BOX.y,5,BOX.h); ctx.rect(BOX.x,FLOOR-2,BOX.w,5); ctx.clip();
-  ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=Math.min(1,a*1.5); ctx.translate(light.x,light.y); img(P,k); ctx.restore();
+  if(Q<2){ctx.save(); ctx.beginPath(); ctx.rect(BOX.x-3,BOX.y,5,BOX.h); ctx.rect(BOX.x+BOX.w-2,BOX.y,5,BOX.h); ctx.rect(BOX.x,FLOOR-2,BOX.w,5); ctx.clip();
+  ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=Math.min(1,a*1.5); ctx.translate(light.x,light.y); img(P,k); ctx.restore();}
   ctx.globalAlpha=1;
 }
 function ringOn(r,rot,ga,front){   /* the Planet's ring: the far half behind the body, the near half in front, wobbling a little as it rolls */
@@ -1819,7 +1860,7 @@ function coronaOn(k,ga){   /* the Sun's corona: the ray sprite twice, turning ag
   var a=REDUCED?0:tNow;
   ctx.globalCompositeOperation='lighter';
   ctx.globalAlpha=ga*.5; ctx.rotate(a*.11); img(COR,k); ctx.rotate(-a*.11);
-  ctx.globalAlpha=ga*.32; ctx.rotate(1-a*.07); img(COR,k*1.08); ctx.rotate(a*.07-1);
+  if(Q<2){ctx.globalAlpha=ga*.32; ctx.rotate(1-a*.07); img(COR,k*1.08); ctx.rotate(a*.07-1);}
   ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=ga;
 }
 function drawBall(x,y,r,t,rot,b){
@@ -1827,13 +1868,13 @@ function drawBall(x,y,r,t,rot,b){
   ctx.save(); ctx.translate(x,y);
   if(b&&b.sq>0)ctx.scale(1+b.sq,1-b.sq);
   if(!S){ctx.fillStyle=T.c;ctx.beginPath();ctx.arc(0,0,r,0,TAU);ctx.fill();ctx.restore();return;}
-  if(lit){ if(SHW)img(SHW,ks); }
+  if(lit){ if(SHW&&Q<2)img(SHW,ks); }
   else if(HALO[t]){ctx.globalCompositeOperation='lighter';ctx.globalAlpha=ga*(.75+.25*tw);img(HALO[t],k);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=ga;}
   if(t===MAXT&&COR)coronaOn(k,ga);
   if(t===6)ringOn(r,rot,ga,false);
   ctx.rotate(rot); img(S,k); ctx.rotate(-rot);
   if(lit&&SHD){var la=lightAngle(x,y);ctx.rotate(la);img(SHD,ks);ctx.rotate(-la);}
-  if(lit&&light.on>0&&y>BOX.y-30&&RIM[light.t]){   /* the light's colour on the side that faces it, fading with distance */
+  if(lit&&Q<1&&light.on>0&&y>BOX.y-30&&RIM[light.t]){   /* the light's colour on the side that faces it, fading with distance */
     var lx=light.x-x,ly=light.y-y,ra=light.on*LIGHT_POW[light.t]/(1+(lx*lx+ly*ly)/48000);
     if(ra>.04){var rr=Math.atan2(ly,lx)+Math.PI/2;ctx.globalCompositeOperation='lighter';ctx.globalAlpha=ga*Math.min(1,ra);ctx.rotate(rr);img(RIM[light.t],ks);ctx.rotate(-rr);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=ga;}
   }
@@ -1857,14 +1898,24 @@ function drawGhosts(){   /* cleared orbs shrink out; a swept board falls away th
   for(var i=0;i<ghosts.length;i++){var g=ghosts[i];ctx.globalAlpha=Math.max(0,Math.min(1,g.l));drawPiece(g.x,g.y,(g.fall||g.suck)?g.r:Math.max(.5,g.r*g.l*g.l),g.t,g.rot,null);}
   ctx.restore(); ctx.globalAlpha=1;
 }
-function drawAmbient(){   /* the twinkling stars and the motes, clipped to the pocket, behind everything that plays */
+function drawWaves(){   /* a ripple: inside an expanding band the pocket is drawn again, magnified a little about the merge, so the stars baked into it jump as the band passes */
+  if(!waves.length)return;
+  for(var i=0;i<waves.length;i++){var w=waves[i],sc=1+.05*w.p*w.l;
+    ctx.save(); ctx.beginPath(); ctx.rect(BOX.x+3,BOX.y+1,BOX.w-6,BOX.h-4); ctx.clip();
+    if(Q<1){ctx.save(); ctx.beginPath(); ctx.arc(w.x,w.y,w.r+w.b,0,TAU); ctx.arc(w.x,w.y,Math.max(0,w.r-w.b),0,TAU,true); ctx.clip();
+      ctx.translate(w.x,w.y); ctx.scale(sc,sc); ctx.translate(-w.x,-w.y); drawBox(); ctx.restore();}
+    ctx.globalAlpha=Math.min(1,.16*w.l*w.p); ctx.strokeStyle='#f3ecdc'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(w.x,w.y,w.r,0,TAU); ctx.stroke();
+    ctx.restore();}
+  ctx.globalAlpha=1;
+}
+function drawAmbient(){   /* the twinkling stars and the motes, clipped to the pocket, behind everything that plays; a passing ripple pushes them outward */
   if(!motes.length&&!sky.length&&!drift.length)return;
   ctx.save(); boxPath(); ctx.clip();
-  var i;
-  for(i=0;i<sky.length;i++){var s=sky[i],a=REDUCED?.45:.22+.5*(.5+.5*Math.sin(tNow*s.sp+s.ph));
-    ctx.globalAlpha=a; ctx.fillStyle='#f3ecdc'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,TAU); ctx.fill();}
-  for(i=0;i<motes.length;i++){var m=motes[i]; ctx.globalAlpha=m.a; ctx.fillStyle='#8fa59a'; ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,TAU); ctx.fill();}
-  for(i=0;i<drift.length;i++){var dm=drift[i]; ctx.globalAlpha=dm.a*Math.min(1,dm.l/dm.ml*1.5); ctx.fillStyle=dm.c; ctx.beginPath(); ctx.arc(dm.x,dm.y,dm.r,0,TAU); ctx.fill();}
+  var i,rp=waves.length>0;
+  for(i=0;i<sky.length;i++){var s=sky[i],a=REDUCED?.45:.22+.5*(.5+.5*Math.sin(tNow*s.sp+s.ph)); if(rp)ripple(s.x,s.y); else{rpx=s.x;rpy=s.y;}
+    ctx.globalAlpha=a; ctx.fillStyle='#f3ecdc'; ctx.beginPath(); ctx.arc(rpx,rpy,s.r,0,TAU); ctx.fill();}
+  for(i=0;i<motes.length;i++){var m=motes[i]; if(rp)ripple(m.x,m.y); else{rpx=m.x;rpy=m.y;} ctx.globalAlpha=m.a; ctx.fillStyle='#8fa59a'; ctx.beginPath(); ctx.arc(rpx,rpy,m.r,0,TAU); ctx.fill();}
+  for(i=0;i<drift.length;i++){var dm=drift[i]; if(rp)ripple(dm.x,dm.y); else{rpx=dm.x;rpy=dm.y;} ctx.globalAlpha=dm.a*Math.min(1,dm.l/dm.ml*1.5); ctx.fillStyle=dm.c; ctx.beginPath(); ctx.arc(rpx,rpy,dm.r,0,TAU); ctx.fill();}
   ctx.restore(); ctx.globalAlpha=1;
 }
 function drawWash(){     /* a chain washes the pocket's edge in the merge colour */
@@ -1880,11 +1931,16 @@ function drawRings(){
   for(var i=0;i<rings.length;i++){var g=rings[i];ctx.globalAlpha=Math.max(0,g.l)*.7;ctx.strokeStyle=g.c;ctx.lineWidth=g.w*g.l+.5;ctx.beginPath();ctx.arc(g.x,g.y,g.r,0,TAU);ctx.stroke();}
   ctx.globalAlpha=1;
 }
-function drawParts(){
+function drawParts(){   /* dust first, matte; then the sparks, which glow: each a small baked sprite added to the scene (plain dots when the quality dial is down) */
+  var glow=Q<1,i,p,a;
   ctx.save(); ctx.lineCap='round';
-  for(var i=0;i<parts.length;i++){var p=parts[i],a=Math.max(0,p.l/p.ml);ctx.globalAlpha=a;
+  for(i=0;i<parts.length;i++){p=parts[i]; if(p.g&&glow)continue; a=Math.max(0,p.l/p.ml); ctx.globalAlpha=a;
     if(p.st){ctx.strokeStyle=p.c;ctx.lineWidth=p.r;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-p.vx*.035,p.y-p.vy*.035);ctx.stroke();}
     else{ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.r*(.4+.6*a),0,TAU);ctx.fill();}}
+  if(glow){ctx.globalCompositeOperation='lighter';
+    for(i=0;i<parts.length;i++){p=parts[i]; if(!p.g)continue; a=Math.max(0,p.l/p.ml); ctx.globalAlpha=a;
+      if(p.st){ctx.strokeStyle=p.c;ctx.lineWidth=p.r;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-p.vx*.035,p.y-p.vy*.035);ctx.stroke();}
+      else{var D=dotSprite(p.c),k=p.r*(.4+.6*a)*.2;ctx.drawImage(D.c,p.x-D.h*k,p.y-D.h*k,D.h*2*k,D.h*2*k);}}}
   ctx.restore(); ctx.globalAlpha=1;
 }
 function drawFloats(){
@@ -1925,9 +1981,9 @@ function render(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,vw,vh);
   ctx.setTransform(1,0,0,1,0,0); ctx.drawImage(bgLayer,0,0);
-  var sx=(Math.random()-.5)*shake,sy=(Math.random()-.5)*shake;
-  ctx.setTransform(dpr*scl,0,0,dpr*scl,dpr*(offX+sx*scl),dpr*(offY+sy*scl));
-  drawBox(); drawAmbient(); drawLight(); drawWash(); drawLine(); drawHint(); drawAim();
+  var sx=(Math.random()-.5)*shake,sy=(Math.random()-.5)*shake,kz=dpr*scl*(1+cam.z);   /* the punch zooms the view about cam.x, cam.y */
+  ctx.setTransform(kz,0,0,kz,dpr*(offX+sx*scl-scl*cam.z*cam.x),dpr*(offY+sy*scl-scl*cam.z*cam.y));
+  drawBox(); drawWaves(); drawAmbient(); drawLight(); drawWash(); drawLine(); drawHint(); drawAim();
   drawGhosts();
   ctx.save(); ctx.beginPath(); ctx.rect(BOX.x-1,0,BOX.w+2,FLOOR+1); ctx.clip();   /* rings, flares and halos stop at the walls and the floor */
   for(var i=0;i<balls.length;i++){var b=balls[i];drawPiece(b.x,b.y,b.r*b.scale,b.t,b.rot,b);}
@@ -2061,10 +2117,12 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 function frameBody(now){
-  var dt=(now-last)/1000; last=now; if(dt>.05)dt=.05; if(dt<0)dt=0; realDt=dt;
+  var dt=(now-last)/1000; last=now; updateQuality(dt); if(dt>.05)dt=.05; if(dt<0)dt=0; realDt=dt;
   /* slow motion as the loss timer runs out: the world eases towards SLOW_TO speed and back the moment the orb settles */
   var ts=1; if(!REDUCED&&state==='play'&&warn>SLOW_FROM)ts=1-(1-SLOW_TO)*Math.min(1,(warn-SLOW_FROM)/(1-SLOW_FROM));
   timeScale+=(ts-timeScale)*Math.min(1,dt*10); dt*=timeScale;
+  if(hitT>0){hitT-=realDt;dt*=.05;}   /* the hold after a big merge: the world all but stops, the camera and the clock do not */
+  if(cam.z!==0||cam.v!==0){var cd=Math.min(realDt,.034);cam.v+=(-cam.z*484-cam.v*20)*cd;cam.z+=cam.v*cd;if(Math.abs(cam.z)<.0002&&Math.abs(cam.v)<.002){cam.z=0;cam.v=0;}}
   tNow+=dt;
   if(state==='play'&&!paused&&!rotated){ acc+=dt; var n=0; while(acc>=DT&&n<6){physStep();acc-=DT;n++;} if(n===6)acc=0; }
   else acc=0;

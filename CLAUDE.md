@@ -290,6 +290,25 @@ with distance (`LIGHT_POW`, falloff `1/(1+d²/48000)`); `POOL[t]` is its glow, d
 stronger, clipped to the brass of the walls and the floor (`drawLight`). No gradient is made per frame: all of
 it is baked sprites, at most one extra `drawImage` per orb and two large ones per frame while a light exists.
 
+**Weight (item 3, shipped 2026-11-12).** `impact(x,y,tier,big)` sits beside `fx()` in the merge branch, an
+effect hook like the others. A merge that makes a Moon or better holds the world for a heartbeat (`HIT`, 30 ms
+for a Moon up to 150 ms for a Sun: `hitT` runs down on real time while game time crawls at a twentieth), kicks
+the camera in by a part or two in a hundred (`PUNCH`, `cam`: an impulse on a damped spring, applied as a zoom
+about a point near the merge in `render()`'s transform, capped at `PUNCH_MAX` so the canvas never slides far
+under the HTML bar), and sends a ripple through the sky (`WAVE_FROM`, `waves`): inside an expanding band
+`drawWaves()` draws the pocket layer again, magnified a little about the merge, so the stars baked into it jump
+as the band passes, and `ripple()` pushes the twinkling stars and motes the same way. Small merges get none of
+it, so play never slows. Sparks glow: particles from `fx()` and `celebrate()` carry `g` and are drawn as small
+baked sprites added with `lighter` (`dotSprite`, one per colour, made on first use); landing dust stays matte.
+All of it is off under reduced motion.
+
+**The quality dial.** These effects cost fill rate, and nobody has measured a mid-range phone yet, so the game
+watches its own frame time (`updateQuality`, fed the raw frame gap; stalls over a quarter second are ignored).
+A second and a half of slow frames sheds a level: `Q` 1 drops spark glow, rim light and the sky refraction and
+halves the particle cap (`partsCap()`); `Q` 2 also drops contact shadows, light on the brass, merge motes and
+the corona's second layer, and quarters the cap. Twenty smooth seconds earn one level back. Anything new that
+costs fill rate should take a `Q` gate.
+
 ## Help legend (shipped 2026-09-29)
 A friend of the owner asked what the colours become. A question mark drawn at the HUD's bottom right
 (`HELP_X`/`HELP_Y`, hit-tested by `helpHit()` before a tap counts as a drop; `h` or `?` on a keyboard) opens
@@ -568,4 +587,7 @@ the line, the clock and drops while it is on the board · ads are rewarded only,
 player taps, and nothing is granted unless Google reports the ad viewed · the next ad is never asked for
 from inside the library's callback · `sw.js` leaves other origins alone and answers only the game's own
 address with the shell · no element id or class starts with ad, share, social, banner, sponsor or promo,
-because content blockers hide them.
+because content blockers hide them · new checks go at the end of test/functional.js, because the suite replays
+one seeded run and a check in the middle moves every roll after it · new cosmetic randomness takes its own
+generator (`driftRnd`), and the `Math.random` calls already in `fx`, `puffAt`, `render` and the motes stay as
+they are, for the same reason.

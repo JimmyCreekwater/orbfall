@@ -122,10 +122,10 @@ async function playToGameOver(g) {
   for (let k = 0; k < 300; k++) g.step(16.67);
   d = g.dbg();
   check(d.state === 'play' && d.revivesUsed === 1 && d.revives === 2 && !g.els.rwbox.classList.contains('show'), 'placeholder ad completes and grants the revive');
-  for (let k = 0; k < 30; k++) g.step(16.67);
-  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
-  sv = JSON.parse(rs.get('orbfall_v2'));
-  g = boot(rs); await settle(); g.step(16.67);
+  g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();   // the app is left the moment the revive lands: a revive does not promise the run lasts
+  sv = JSON.parse(rs.get('orbfall_v2')); const rsAtRevive = new Map(rs);
+  g.document.hidden = false; for (let k = 0; k < 30; k++) g.step(16.67);   // (these frames keep the seeded dice where later checks expect them)
+  g = boot(rsAtRevive); await settle(); g.step(16.67);
   check(sv.live && sv.live.v === 1 && g.dbg().revivesUsed === 1 && g.dbg().revives === 2, 'a reload restores the run with its revive already spent');
 
   // the feel pass
@@ -758,6 +758,33 @@ async function playToGameOver(g) {
   check(g.dbg().light.t === 10, 'a Sun outshines the Star');
   g.reset(); for (let k = 0; k < 200; k++) g.step(16.67); q = g.dbg();
   check(q.light.on === 0 && Math.abs(q.lamp - lampA) < 1e-9, 'with no bright body left the light fades and the lamp is back');
+
+  // weight: a big merge holds the world for a heartbeat, punches the camera and ripples the sky; a small one does not
+  g = boot(new Map()); await settle(); g.step(16.67);
+  g.window.__place(120, 560, 0); g.window.__place(146, 560, 0); g.step(16.67); q = g.dbg();
+  check(q.tiers.indexOf(1) >= 0 && q.hit === 0 && q.camZ === 0 && q.camV === 0 && q.waves === 0 && q.glowing > 0, 'two Motes merge with glowing sparks but no hold, no punch, no ripple');
+  g.window.__place(100, 400, 6); g.window.__place(215, 400, 6); g.step(16.67); q = g.dbg();
+  check(q.tiers.indexOf(7) >= 0 && q.hit > 0 && q.waves === 1 && q.camV > 0, 'two Planets make a Giant: the world holds, the camera is kicked, a ripple starts');
+  const tHeld = q.tNow; g.step(16.67);
+  check(g.dbg().tNow - tHeld < .004, 'during the hold game time all but stops');
+  let zMax = 0; for (let k = 0; k < 40; k++) { g.step(16.67); zMax = Math.max(zMax, g.dbg().camZ); }
+  check(zMax > .005 && zMax <= .03 && g.dbg().hit <= 0, 'the camera punches in by a part or two in a hundred and the hold ends (' + zMax.toFixed(4) + ')');
+  for (let k = 0; k < 120; k++) g.step(16.67); q = g.dbg();
+  check(q.camZ === 0 && q.camV === 0 && q.waves === 0, 'then the view settles and the ripple is gone');
+
+  // the quality dial: sustained slow frames shed effects, a long smooth stretch earns them back
+  check(q.Q === 0, 'at a steady 60 frames a second every effect is on');
+  for (let k = 0; k < 120; k++) g.step(30);
+  check(g.dbg().Q >= 1, 'a device that cannot keep up gets lighter effects (' + g.dbg().Q + ')');
+  for (let k = 0; k < 120; k++) g.step(30);
+  check(g.dbg().Q === 2, 'and plainer still if that is not enough');
+  g.window.__burst(12); check(g.dbg().parts <= 105 && g.dbg().parts > 0, 'with a quarter of the particles (' + g.dbg().parts + ')');
+  g.step(400); check(g.dbg().Q === 2, 'a stall, such as a hidden tab, says nothing about the device');
+  for (let k = 0; k < 1500; k++) g.step(16.67);
+  check(g.dbg().Q === 1, 'twenty smooth seconds earn one level back');
+  const wk = boot(new Map(), { reduced: true }); await settle(); wk.step(16.67);
+  wk.window.__place(100, 400, 6); wk.window.__place(215, 400, 6); wk.step(16.67);
+  check(wk.dbg().tiers.indexOf(7) >= 0 && wk.dbg().hit === 0 && wk.dbg().camV === 0 && wk.dbg().waves === 0, 'under reduced motion a big merge has no hold, punch or ripple');
 
   done('functional');
 })().catch(e => { console.error(e); process.exit(1); });
