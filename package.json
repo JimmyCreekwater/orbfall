@@ -1,12 +1,13 @@
 {
   "name": "orbfall",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "private": true,
   "description": "Single-file mobile browser merge-drop game",
   "scripts": {
     "test": "node test/physics.js && node test/functional.js && node test/pwa.js",
     "icons": "node tools/icons.js",
-    "release": "node tools/release.js"
+    "release": "node tools/release.js",
+    "blockcheck": "node tools/blockcheck.js"
   },
   "engines": {
     "node": ">=18"

@@ -311,6 +311,19 @@ Google's Ad Placement API for HTML5 games (AdSense "H5 Games Ads"); no interstit
   already watched earns the reward.
 - **While a reward is in progress** (`adBusy`, part of `updatePause()`): no drops, and neither the keyboard
   nor Play again can restart the run.
+- **Content blockers** (fixed 2026-11-12, after the owner tapped "undo (ad)" with AdNauseam on and nothing
+  happened). Blockers hide page elements by name. EasyList, on by default in uBlock Origin, AdNauseam,
+  Adblock Plus and Brave, hides `#adbox`, which had been the reward dialog's id since the first build: for
+  every blocker user the dialog was invisible, the placeholder undid a move after an unseen wait, and with
+  the real library the game sat paused behind an invisible box. Two social lists hid `#sharebox` and
+  `#sharecopy` the same way. So no id or class may start with `ad`, `share`, `social`, `banner`, `sponsor`
+  or `promo`: the reward box is `#rwbox` with `rw…` children, the share box and its button are `#send…`, the
+  gold accent on ad-gated buttons is `.gated`. `test/pwa.js` guards the rule offline; `npm run blockcheck`
+  (tools/blockcheck.js, needs the network) tests every name in the game against the live lists and belongs
+  after any new element. A blocker also swaps Google's library for a stand-in that loads and does nothing:
+  `adAlive` (set by the library's `onReady` and by any callback) tells the two apart, the "No ad right now"
+  box then says an ad blocker may be stopping it (or that the player is offline), and after one such
+  timeout (`adDead`) later rewards say so at once instead of waiting again.
 - **Going live** needs three things beside the id, all checked by the release script once `AD_CLIENT` is set:
   `ads.txt` at the site root with the publisher line, `<meta name="google-adsense-account">` in the head,
   and `privacy.html` with a real contact address (it ships with `CONTACT-EMAIL-HERE`, unlinked). The settings
@@ -321,7 +334,8 @@ Google's Ad Placement API for HTML5 games (AdSense "H5 Games Ads"); no interstit
   it, no code here).
 - **Verified 2026-11-12** in desktop Chromium against Google's live library in test mode: the prompt, a sample
   ad watched to the end (granted), one closed early (not granted), Not now, and both ads of Undo 10 in
-  sequence. Not verifiable without an approved account: real fill, earnings, the consent message.
+  sequence; and with a blocker simulated (EasyList's hide rule plus the do-nothing stand-in script): the box
+  shows, explains, and the second tap answers at once. Not verifiable without an approved account: real fill, earnings, the consent message.
 - Open product choices, the owner's call: whether "No ad right now" should hand the reward over anyway, and a
   one-tap flow (ask the library when the chooser opens, so the row's own tap starts the ad).
 
@@ -525,4 +539,5 @@ wordmark has its own gradient id · a black hole never consumes a seed piece, ne
 the line, the clock and drops while it is on the board · ads are rewarded only, each behind a prompt the
 player taps, and nothing is granted unless Google reports the ad viewed · the next ad is never asked for
 from inside the library's callback · `sw.js` leaves other origins alone and answers only the game's own
-address with the shell.
+address with the shell · no element id or class starts with ad, share, social, banner, sponsor or promo,
+because content blockers hide them.

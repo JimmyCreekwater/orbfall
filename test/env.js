@@ -135,7 +135,7 @@ window.__dbg=function(){
     hole:(function(){for(var i=0;i<balls.length;i++)if(balls[i].hole)return {phase:balls[i].phase,r:Math.round(balls[i].tr),eaten:balls[i].eaten};return null;})(),
     holesDue:holesDue,holeFlash:holeFlash,sucking:ghosts.filter(function(g){return g.suck;}).length,
     adBusy:adBusy,adShowing:adShowing,adH:adhEl.textContent,adP:adpEl.textContent,adWatch:adWatchBtn.classList.contains('show'),
-    adFail:adFail,privacyShown:privacyEl.style.display!=='none',
+    adFail:adFail,privacyShown:privacyEl.style.display!=='none',adAlive:adAlive,adDead:adDead,
     nameOn:nameOn,nameWarn:nameWarnEl.textContent,seedBoxOn:seedBoxOn,seedIn:seedInEl.value,shareOn:shareOn,shareText:shareTextEl.value,viewSeed:viewSeed,drift:drift.length,
     rescueLeft:rescueLeft(),rescueBtn:reviveBtn.textContent+(reviveBtn.disabled?'(off)':''),rescueCap:rescueCapEl.textContent,rescueNote:rescueNoteEl.textContent,
     seed:runSeed,activeSeed:activeSeed,seqN:seqN,curT:cur?cur.t:-1,nxtT:nxt?nxt.t:-1,boardOnline:boardOnline,

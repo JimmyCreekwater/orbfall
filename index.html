@@ -34,13 +34,13 @@ button{font-family:inherit}
   background:linear-gradient(180deg,rgba(24,52,45,.96),rgba(11,25,21,.96));box-shadow:inset 0 1px 0 rgba(243,236,220,.09),0 3px 8px rgba(0,0,0,.35)}
 #bar button:disabled{opacity:.35;cursor:default}
 #bar button.off{color:var(--coral);text-decoration:line-through}
-#bar button.ad{color:var(--gold)}
+#bar button.gated{color:var(--gold)}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .veil{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;
   background:rgba(11,25,21,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .veil.show{display:flex}
 #over{z-index:10}
-#adbox{z-index:30}
+#rwbox{z-index:30}
 #fault{z-index:40}
 #rotate{z-index:35}
 .inst{display:none;margin-top:10px;width:100%;padding:11px 8px;border-radius:14px;border:1.5px solid rgba(255,176,32,.5);background:transparent;
@@ -77,14 +77,14 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 #home,#pause{z-index:12}
 #rescue{z-index:13}
 .opt .sec.small{flex:0 0 auto;padding:9px 14px;font-size:13px;min-width:78px}
-.opt .sec.small.ad{color:var(--gold)}
+.opt .sec.small.gated{color:var(--gold)}
 .clean-run{display:none;color:var(--gold);font-weight:700;font-size:13px;margin:-8px 0 12px}
 .clean-run.show{display:block}
 .rows .clean{color:var(--gold);font-weight:800;margin-left:4px}
-.adk{color:var(--sage);font-size:13px;font-weight:600;margin:-4px 0 8px;min-height:16px}
-#adwatch{display:none;width:100%;margin-bottom:8px}
-#adwatch.show{display:block}
-#adcancel{width:100%}
+.rwk{color:var(--sage);font-size:13px;font-weight:600;margin:-4px 0 8px;min-height:16px}
+#rwgo{display:none;width:100%;margin-bottom:8px}
+#rwgo.show{display:block}
+#rwno{width:100%}
 .plink{display:block;margin-top:10px;padding:8px;color:var(--sage);font-size:13px;font-weight:600;text-align:center;text-decoration:underline}
 .wm.big{height:34px;margin-bottom:14px}
 .wm.big svg{height:34px}
@@ -95,7 +95,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .seeds{margin-top:8px}
 .seeds .sec{flex:1 1 0;width:auto;margin-top:0}
 .seeds .today{flex:3 1 0}
-#seedbox,#sharebox,#help{z-index:13}
+#seedbox,#sendbox,#help{z-index:13}
 .card.help{padding:22px 20px 16px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 .card.help .best{margin-bottom:10px}
 .ladder{list-style:none;text-align:left;margin:2px 0 10px}
@@ -118,10 +118,10 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 .sec{flex:1;padding:13px 8px;border-radius:14px;border:1.5px solid rgba(184,149,90,.35);background:transparent;
   color:var(--ivory);font-weight:700;font-size:15px;cursor:pointer}
 .sec:disabled{opacity:.35;cursor:default}
-.sec.ad{color:var(--gold)}
+.sec.gated{color:var(--gold)}
 .rescue{width:100%;margin-bottom:8px}
-#adbox .big{font-size:56px;font-weight:800;margin:6px 0}
-#adbox p{color:var(--sage);font-size:14px;margin-bottom:16px}
+#rwbox .big{font-size:56px;font-weight:800;margin:6px 0}
+#rwbox p{color:var(--sage);font-size:14px;margin-bottom:16px}
 #dim{position:fixed;inset:0;background:rgba(11,25,21,.6);display:none;z-index:15}
 #dim.show{display:block}
 #sheet,#opts{position:fixed;left:0;right:0;bottom:0;max-height:82%;display:flex;flex-direction:column;
@@ -191,14 +191,14 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     <div class="clean-run" id="cleanrun">✦ Clean run</div>
     <div class="chain" id="chain" aria-label="Sizes reached this run"></div>
     <div class="chaincap" id="chaincap"></div>
-    <button class="sec rescue ad" id="revive" type="button">Rescue this run</button>
+    <button class="sec rescue gated" id="revive" type="button">Rescue this run</button>
     <div class="rescuecap" id="rescuecap">Two rescues per run</div>
     <button id="again" type="button">Play again</button>
     <div class="chips modes" id="modes" aria-label="Mode for the next run"></div>
     <button class="inst" id="install" type="button">Add to home screen</button>
     <div class="inst ios" id="ioshint">Share, then Add to Home Screen, keeps your scores safe on iPhone. <button id="iosok" type="button">Got it</button></div>
     <div class="row">
-      <button class="sec" id="share" type="button">Share</button>
+      <button class="sec" id="send" type="button">Share</button>
       <button class="sec" id="challenge" type="button">Challenge</button>
     </div>
     <div class="row">
@@ -285,12 +285,12 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     <button class="sec rescue" id="seedback" type="button">Back</button>
   </div>
 </div>
-<div id="sharebox" class="veil" role="dialog" aria-modal="true" aria-labelledby="shareh">
+<div id="sendbox" class="veil" role="dialog" aria-modal="true" aria-labelledby="sendh">
   <div class="card">
-    <h1 id="shareh">Share</h1>
+    <h1 id="sendh">Share</h1>
     <p class="best">This device has no share sheet, so here is the text to copy.</p>
-    <textarea class="nm wide" id="sharetext" readonly rows="4" aria-label="Text to share"></textarea>
-    <div class="row"><button class="sec" id="sharecopy" type="button">Copy</button><button class="sec" id="sharedone" type="button">Done</button></div>
+    <textarea class="nm wide" id="sendtext" readonly rows="4" aria-label="Text to share"></textarea>
+    <div class="row"><button class="sec" id="sendcopy" type="button">Copy</button><button class="sec" id="senddone" type="button">Done</button></div>
   </div>
 </div>
 <div id="namebox" class="veil" role="dialog" aria-modal="true" aria-labelledby="nameh">
@@ -315,14 +315,14 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
     <button class="sec rescue" id="rescueback" type="button">Back</button>
   </div>
 </div>
-<div id="adbox" class="veil">
+<div id="rwbox" class="veil">
   <div class="card">
-    <h1 id="adh">Ad placeholder</h1>
-    <div class="big" id="adn">3</div>
-    <div class="adk" id="adk"></div>
-    <p id="adp">A rewarded ad would play here. The reward unlocks when it ends.</p>
-    <button class="sec ad" id="adwatch" type="button">Watch the ad</button>
-    <button class="sec" id="adcancel" type="button">Cancel</button>
+    <h1 id="rwh">Ad placeholder</h1>
+    <div class="big" id="rwn">3</div>
+    <div class="rwk" id="rwk"></div>
+    <p id="rwp">A rewarded ad would play here. The reward unlocks when it ends.</p>
+    <button class="sec gated" id="rwgo" type="button">Watch the ad</button>
+    <button class="sec" id="rwno" type="button">Cancel</button>
   </div>
 </div>
 <script>
@@ -331,16 +331,16 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
 var $=function(id){return document.getElementById(id);};
 var canvas=$('c'),ctx=canvas.getContext('2d');
 var overEl=$('over'),fsEl=$('fs'),fbEl=$('fb'),pbEl=$('pb'),chainEl=$('chain'),againBtn=$('again'),scores2Btn=$('scores2'),reviveBtn=$('revive'),chaincapEl=$('chaincap'),cleanEl=$('cleanrun');
-var rescueEl=$('rescue'),r1Btn=$('r1'),r5Btn=$('r5'),r10Btn=$('r10'),rclearBtn=$('rclear'),rescueBackBtn=$('rescueback'),adkEl=$('adk');
+var rescueEl=$('rescue'),r1Btn=$('r1'),r5Btn=$('r5'),r10Btn=$('r10'),rclearBtn=$('rclear'),rescueBackBtn=$('rescueback'),adkEl=$('rwk');
 var barEl=$('bar'),soundBtn=$('sound'),undoBtn=$('undo'),scoresBtn=$('scores');
 var dimEl=$('dim'),sheetEl=$('sheet'),closeBtn=$('close'),chipsEl=$('chips'),statsEl=$('stats'),rowsEl=$('rows');
 var settingsBtn=$('settings'),optsEl=$('opts'),optsCloseBtn=$('optsclose'),optListEl=$('optlist'),modesEl=$('modes'),modeChipsEl=$('modechips'),srcChipsEl=$('srcchips');
-var adboxEl=$('adbox'),adnEl=$('adn'),adcancelBtn=$('adcancel'),adhEl=$('adh'),adpEl=$('adp'),adWatchBtn=$('adwatch'),faultEl=$('fault'),faultBtn=$('faultbtn');
-var rotateEl=$('rotate'),shareBtn=$('share'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok'),wmEl=$('wm'),challengeBtn=$('challenge');
+var adboxEl=$('rwbox'),adnEl=$('rwn'),adcancelBtn=$('rwno'),adhEl=$('rwh'),adpEl=$('rwp'),adWatchBtn=$('rwgo'),faultEl=$('fault'),faultBtn=$('faultbtn');
+var rotateEl=$('rotate'),shareBtn=$('send'),installBtn=$('install'),iosHintEl=$('ioshint'),iosOkBtn=$('iosok'),wmEl=$('wm'),challengeBtn=$('challenge');
 var homeEl=$('home'),playBtn=$('play'),newRunBtn=$('newrun'),modesHomeEl=$('modeshome'),todayBtn=$('today'),homeScoresBtn=$('homescores'),homeSettingsBtn=$('homesettings'),homeChallengeBtn=$('homechallenge');
 var pauseEl=$('pause'),resumeBtn=$('resume'),pauseScoresBtn=$('pausescores'),pauseSettingsBtn=$('pausesettings'),restartBtn=$('restart'),pauseHomeBtn=$('pausehome'),home2Btn=$('home2'),wmHomeEl=$('wmhome'),wmPauseEl=$('wmpause');
 var seedOtherBtn=$('seedother'),seedBoxEl=$('seedbox'),seedInEl=$('seedin'),seedRandomBtn=$('seedrandom'),seedGoBtn=$('seedgo'),seedBackBtn=$('seedback');
-var shareBoxEl=$('sharebox'),shareTextEl=$('sharetext'),shareCopyBtn=$('sharecopy'),shareDoneBtn=$('sharedone');
+var shareBoxEl=$('sendbox'),shareTextEl=$('sendtext'),shareCopyBtn=$('sendcopy'),shareDoneBtn=$('senddone');
 var nameBoxEl=$('namebox'),nameInEl=$('namein'),nameWarnEl=$('namewarn'),nameGoBtn=$('namego'),wmNameEl=$('wmname'),rescueNoteEl=$('rescuenote'),rescueCapEl=$('rescuecap');
 var helpEl=$('help'),helpOkBtn=$('helpok'),ladderEl=$('ladder'),helpOn=false;
 var nameKeepEl=$('namekeep'),privacyEl=$('privacy');   // the help legend behind the HUD's question mark
@@ -427,6 +427,7 @@ var state='play',paused=false,shake=0,warn=0,hint=1,nextId=1,overShownAt=0;
 var snaps=[],undosFree=UNDO_FREE_PER_RUN,undosUsed=0,revivesUsed=0,lastRec=null,adTimer=null;
 var adApi=null,adBusy=false,adShowing=false,adDeadline=0,adShow=null,adAbort=null,adTimeout=null;   // the ad API; a reward in progress; an ad on screen; the wait; the prompt; cancel; the wait's end
 var adFail=false,adsReal=false;   // Google's library failed to load (offline, a blocker); a real publisher id is configured
+var adAlive=false,adDead=false;   // the library has called back at least once; a reward timed out with it still silent (a blocker's stand-in script)
 var used5=false,used10=false,rescueOn=false,rescuesUsed=0;   // the paid rewinds, once each per run; the chooser; rescues taken this run
 var holesDue=0,holeFlash=0;   // black holes owed beyond the one in the next slot; the burst's white flash
 var nameOn=false,nameNext=null,seedBoxOn=false,shareOn=false,viewSeed=null,drift=[],seedBusy=false;   // the name gate, the seed and share boxes, the board's seed, merge motes
@@ -971,7 +972,7 @@ function adLoad(){   /* Google's library, with its settings as attributes on the
     sc.onerror=function(){ adFail=true; try{ if(sc.parentNode)sc.parentNode.removeChild(sc); }catch(e){} if(Array.isArray(window.adsbygoogle))window.adsbygoogle.length=0; if(adDeadline&&adTimeout)adTimeout(); };
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){ adFail=true; return; }
-  adApi({preloadAdBreaks:'on',sound:(sfxOn()||musicOn())?'on':'off'});
+  adApi({preloadAdBreaks:'on',sound:(sfxOn()||musicOn())?'on':'off',onReady:function(){adAlive=true;}});
 }
 function adSound(){ if(adApi)adApi({sound:(sfxOn()||musicOn())?'on':'off'}); }
 function adText(p,k,total){
@@ -983,7 +984,8 @@ function adBox(mode,k,total,p){
   adWatchBtn.classList.toggle('show',mode==='ask');
   if(mode==='wait'){ adhEl.textContent='Finding an ad'; adpEl.textContent='One moment.'; adcancelBtn.textContent='Cancel'; }
   else if(mode==='ask'){ adhEl.textContent='Watch an ad?'; adpEl.textContent=adText(p,k,total); adcancelBtn.textContent='Not now'; }
-  else { adhEl.textContent='No ad right now'; adpEl.textContent='Nothing was used. Try again in a minute.'; adcancelBtn.textContent='OK'; }
+  else { adhEl.textContent='No ad right now'; adcancelBtn.textContent='OK';   /* say why when it is knowable: offline, or a library that failed to load or has never answered */
+    adpEl.textContent=navigator.onLine===false?'You are offline. Nothing was used.':((adFail||!adAlive)?'No ad could load. An ad blocker may be stopping it. Nothing was used.':'Nothing was used. Try again in a minute.'); }
   adboxEl.classList.add('show');
 }
 function realReward(grant,placement,count){
@@ -1001,13 +1003,13 @@ function realReward(grant,placement,count){
   function ask(){
     var offered=false,viewed=false,dismissed=false;
     adApi({type:'reward',name:placement,
-      beforeReward:function(showAdFn){ if(over)return; offered=true; adDeadline=0; adShow=function(){ adShow=null; adWatchBtn.classList.remove('show'); showAdFn(); }; adBox('ask',done+1,total,placement); },
+      beforeReward:function(showAdFn){ adAlive=true; if(over)return; offered=true; adDeadline=0; adShow=function(){ adShow=null; adWatchBtn.classList.remove('show'); showAdFn(); }; adBox('ask',done+1,total,placement); },
       beforeAd:function(){ if(over)return; adShowing=true; stopMusic(.1); updatePause(); },
       afterAd:function(){ adShowing=false; },
       adDismissed:function(){ dismissed=true; },
       adViewed:function(){ viewed=true; },
       adBreakDone:function(info){
-        if(over)return;
+        adAlive=true; if(over)return;
         if(viewed){ done++; if(done<total){ wait(); setTimeout(function(){ if(!over)ask(); },AD_GAP_MS); } else finish(true); return; }   /* the next ad is asked for a beat later, never from inside the library's own callback */
         if(dismissed){ toast('The reward needs the whole ad'); finish(false); return; }
         if(offered){ finish(false); return; }
@@ -1016,8 +1018,10 @@ function realReward(grant,placement,count){
         none();
       }});
   }
-  adBusy=true; adAbort=function(){ finish(false); }; adTimeout=function(){ if(!over)none(); };
-  updatePause(); wait(); ask();
+  adBusy=true; adAbort=function(){ finish(false); }; adTimeout=function(){ if(over)return; if(!adAlive)adDead=true; none(); };
+  updatePause();
+  if(adDead&&!adAlive){ none(); return; }   /* it has timed out before and never once answered: say so at once instead of waiting again */
+  wait(); ask();
 }
 function stubReward(grant,placement,count){
   var secs=AD_STUB[placement]||AD_STUB_SECONDS,left=count||1,total=left,n=secs;
@@ -1036,7 +1040,7 @@ function stubReward(grant,placement,count){
    clear the smallest (free once ever, then an ad). The paid rewinds and the clear are once per run each. */
 function openRescue(){ if(state!=='over')return; rescueOn=true; updateRescue(); rescueEl.classList.add('show'); updatePause(); }
 function closeRescue(){ rescueOn=false; rescueEl.classList.remove('show'); updatePause(); }
-function rescueRow(b,on,cost,used){ b.disabled=!on; b.textContent=used?'Used':cost; b.classList.toggle('ad',on&&cost!=='Free'); }
+function rescueRow(b,on,cost,used){ b.disabled=!on; b.textContent=used?'Used':cost; b.classList.toggle('gated',on&&cost!=='Free'); }
 function updateRescue(){
   var over=state==='over';
   rescueRow(r1Btn,over&&snaps.length>=1,undosFree>0?'Free':'Ad',false);
@@ -1085,7 +1089,7 @@ function updateBar(){
   var ok=snaps.length>0&&(state==='play'||state==='over');
   undoBtn.disabled=!ok;
   var adGate=undosFree<=0;
-  undoBtn.textContent=adGate?'undo (ad)':'undo'; undoBtn.classList.toggle('ad',adGate);
+  undoBtn.textContent=adGate?'undo (ad)':'undo'; undoBtn.classList.toggle('gated',adGate);
   updateInstall();
   var rl=rescueLeft();
   reviveBtn.disabled=!rescueAny();

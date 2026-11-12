@@ -59,8 +59,8 @@ records and boards; seeds deal the same pieces, survive undo and reload, start f
 land on the Today board; the menu and pause sheet keep the game paused behind them; the rescue
 chooser's ring, ad counts, caps, the two-rescue limit and the clean badge; the name gate and filter; typed
 and random seeds; the share box; the seed board; merge motes; the black hole; triples; the ad adapter
-(prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, no
-restart under an ad); the crash card catches a throwing frame;
+(prompt, a watched ad, one closed early, no ad, "not yet" asked again, two ads, a failed library load, a
+blocked or offline player told why, no restart under an ad); no element name a content blocker would hide; the crash card catches a throwing frame;
 sharing, the landscape card and
 the install nudge; the online board posts a best score once and renders the shared top; the
 manifest, icons and service worker hold together (shell precached, stale caches dropped,
@@ -69,6 +69,10 @@ cache-first offline). The suite is seeded, so it is the same run every time.
 `npm run icons` redraws `icons/` from `tools/icons.js` (the brass orb over a star field, and the
 link-preview image with the pixel wordmark). Only needed if the mark changes; the PNGs are
 checked in.
+
+`npm run blockcheck` reads the common content-blocker lists and reports any element in the game that a
+blocker would hide by its name (one list hid the reward dialog for months). Run it after adding or
+renaming elements; it needs the network, so it is not part of `npm test`.
 
 ## Working on it with Claude Code
 `CLAUDE.md` holds the design record, the physics notes, the persistence schema and an ordered

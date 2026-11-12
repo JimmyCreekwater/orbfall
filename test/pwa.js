@@ -89,5 +89,11 @@ function pngSize(f) {
   check(res && res.fromNetwork && res.url === BASE + 'other.html', 'any other page in the folder goes to the network');
   const priv = read('privacy.html');
   check(/<a [^>]*id="privacy"[^>]*href="privacy\.html"/.test(html) && /href="\.\/"/.test(priv) && /adssettings\.google\.com/.test(priv), 'the settings sheet links the privacy page, which links back to the game and to the ad opt-out');
+  // content blockers hide elements by name (EasyList hides #adbox, once the game's own reward dialog): no bait names
+  const { tokens } = require('../tools/blockcheck.js');
+  const names = tokens(html), privNames = tokens(priv);
+  const bait = [...names.ids, ...names.classes, ...privNames.ids, ...privNames.classes].filter(n => /^(ad|share|social|banner|sponsor|promo)/i.test(n));
+  check(names.ids.size > 80 && names.classes.size > 30 && bait.length === 0, 'no element id or class starts with ad, share, social, banner, sponsor or promo, which content blockers hide (' + (bait.join(' ') || 'none') + ')');
+  check(names.ids.has('rwbox') && names.ids.has('sendbox') && names.classes.has('gated'), 'the reward box, the share box and the gold accent carry their neutral names');
   done('pwa');
 })().catch(e => { console.error(e); process.exit(1); });

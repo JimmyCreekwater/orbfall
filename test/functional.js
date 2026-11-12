@@ -35,13 +35,13 @@ async function playToGameOver(g) {
   g.tap(180); g.step(16.67);
   check(g.dbg().snap === true, 'a drop creates an undo snapshot');
   g.fire('undo:click'); g.step(16.67);
-  check(g.dbg().paused === true && g.els.adbox.classList.contains('show'), 'second undo is gated behind the ad placeholder');
+  check(g.dbg().paused === true && g.els.rwbox.classList.contains('show'), 'second undo is gated behind the ad placeholder');
   for (let k = 0; k < 200; k++) g.step(16.67);
   d = g.dbg();
-  check(d.paused === false && d.undosUsed === 2 && !g.els.adbox.classList.contains('show'), 'placeholder ad completes and grants the undo');
+  check(d.paused === false && d.undosUsed === 2 && !g.els.rwbox.classList.contains('show'), 'placeholder ad completes and grants the undo');
 
   g.fire('undo:click'); g.step(16.67);
-  if (g.els.adbox.classList.contains('show')) { g.fire('adcancel:click'); g.step(16.67); }
+  if (g.els.rwbox.classList.contains('show')) { g.fire('rwno:click'); g.step(16.67); }
   check(g.dbg().paused === false && g.dbg().undosUsed === 2, 'cancelling the placeholder ad grants nothing');
 
   g.reset(); g.step(16.67);
@@ -115,13 +115,13 @@ async function playToGameOver(g) {
   await playToGameOver(g);
   g.fire('revive:click'); check(g.dbg().rescue.split('|')[3] === 'Ad', 'next run: the clear is offered again, now ad-gated'); g.fire('rescueback:click');
   g.fire('win:keydown', { key: 'r' }); g.step(16.67);
-  check(g.dbg().paused === true && g.els.adbox.classList.contains('show') && g.dbg().state === 'over', 'the r key asks for the reward first');
-  g.fire('adcancel:click'); g.step(16.67);
+  check(g.dbg().paused === true && g.els.rwbox.classList.contains('show') && g.dbg().state === 'over', 'the r key asks for the reward first');
+  g.fire('rwno:click'); g.step(16.67);
   check(g.dbg().state === 'over' && g.dbg().revivesUsed === 0 && g.dbg().revives === 1, 'cancelling the placeholder ad grants no revive');
   g.fire('revive:click'); g.fire('rclear:click'); g.step(16.67);
   for (let k = 0; k < 300; k++) g.step(16.67);
   d = g.dbg();
-  check(d.state === 'play' && d.revivesUsed === 1 && d.revives === 2 && !g.els.adbox.classList.contains('show'), 'placeholder ad completes and grants the revive');
+  check(d.state === 'play' && d.revivesUsed === 1 && d.revives === 2 && !g.els.rwbox.classList.contains('show'), 'placeholder ad completes and grants the revive');
   for (let k = 0; k < 30; k++) g.step(16.67);
   g.document.hidden = true; g.fire('doc:visibilitychange'); await settle();
   sv = JSON.parse(rs.get('orbfall_v2'));
@@ -262,7 +262,7 @@ async function playToGameOver(g) {
   const iv = new Map();
   g = boot(iv); await settle(); g.step(16.67);
   o = await playToGameOver(g);
-  g.fire('share:click'); await settle();
+  g.fire('send:click'); await settle();
   check(g.shares.length === 1 && g.shares[0].title === 'Orbfall' && g.shares[0].text.includes(o.score.toLocaleString('en-US')) && !g.shares[0].url, 'Share hands the score to the system share sheet (no link when there is no http address)');
   check(g.dbg().installShown === false && g.dbg().iosHintShown === false, 'no install nudge after one run');
   g.fire('win:beforeinstallprompt', { preventDefault() {}, prompt() { g.prompted = true; } });
@@ -442,7 +442,7 @@ async function playToGameOver(g) {
   check(q.rescueOn && q.paused && q.rescue === 'Free|Ad|2 ads|Free', 'the chooser lists undo 1 free, undo 5 for an ad, undo 10 for two, and the clear free (' + q.rescue + ')');
   const dropsAtOver = q.drops;
   g.fire('r5:click'); g.step(16.67);
-  check(!g.dbg().rescueOn && g.els.adbox.classList.contains('show') && g.dbg().adk === '', 'Undo 5 asks for one ad');
+  check(!g.dbg().rescueOn && g.els.rwbox.classList.contains('show') && g.dbg().adk === '', 'Undo 5 asks for one ad');
   for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
   check(q.state === 'play' && q.drops === dropsAtOver - 5 && q.undosUsed === 5 && q.used5 && q.rescueLeft === 1, 'after the ad five moves are undone, one rescue left');
   for (let d = 0; d < 6; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
@@ -450,10 +450,10 @@ async function playToGameOver(g) {
   check(q.rescue.split('|')[1] === 'Used(off)' && q.rescue.split('|')[2] === '2 ads', 'undo 5 is spent for this run, undo 10 still offered');
   const dropsAtOver2 = q.drops;
   g.fire('r10:click'); g.step(16.67);
-  check(g.els.adbox.classList.contains('show') && g.dbg().adk === 'Ad 1 of 2', 'Undo 10 asks for two ads, counted on the placeholder');
+  check(g.els.rwbox.classList.contains('show') && g.dbg().adk === 'Ad 1 of 2', 'Undo 10 asks for two ads, counted on the placeholder');
   for (let k = 0; k < 330; k++) g.step(16.67);
-  check(g.els.adbox.classList.contains('show') && g.dbg().adk === 'Ad 2 of 2' && g.dbg().state === 'over', 'the second ad follows the first before anything is granted');
-  g.fire('adcancel:click'); g.step(16.67); q = g.dbg();
+  check(g.els.rwbox.classList.contains('show') && g.dbg().adk === 'Ad 2 of 2' && g.dbg().state === 'over', 'the second ad follows the first before anything is granted');
+  g.fire('rwno:click'); g.step(16.67); q = g.dbg();
   check(q.state === 'over' && !q.used10 && q.drops === dropsAtOver2, 'cancelling the second ad grants nothing');
   g.fire('revive:click'); g.fire('r10:click'); for (let k = 0; k < 700; k++) g.step(16.67); q = g.dbg();
   check(q.state === 'play' && q.drops === dropsAtOver2 - 10 && q.used10 && q.undosUsed === 15 && q.rescueLeft === 0, 'two full ads undo ten moves, and that was the second rescue');
@@ -500,13 +500,13 @@ async function playToGameOver(g) {
 
   // share box: without a share sheet, Share and Challenge show the text with a Copy button
   delete g.navigator.share;
-  g.fire('share:click'); q = g.dbg();
+  g.fire('send:click'); q = g.dbg();
   check(q.shareOn && q.paused && q.shareText.indexOf('I scored') === 0 && q.shareText.includes('PIZZA42'), 'Share without a share sheet opens the text box');
-  g.fire('sharecopy:click'); await settle(); q = g.dbg();
+  g.fire('sendcopy:click'); await settle(); q = g.dbg();
   check(g.copied === q.shareText && !q.shareOn, 'Copy puts the text on the clipboard and closes the box');
   g.fire('challenge:click'); q = g.dbg();
   check(q.shareOn && q.shareText.includes('seed PIZZA42') && q.shareText.includes('#s=PIZZA42'), 'Challenge does the same with the seed link');
-  g.fire('sharedone:click'); check(!g.dbg().shareOn && !g.dbg().paused, 'Done closes it');
+  g.fire('senddone:click'); check(!g.dbg().shareOn && !g.dbg().paused, 'Done closes it');
 
   // the seed board: a seeded run posts to the seed table, the Seed and Today chips read from it
   const sb = new Map();
@@ -617,20 +617,20 @@ async function playToGameOver(g) {
   check(rw && rw.name === 'undo5' && q.adBusy && q.paused && q.adH === 'Finding an ad' && !q.adWatch, 'Undo 5 asks the API for a rewarded ad and waits, paused');
   rw.beforeReward(() => { played++; }); q = g.dbg();
   check(q.adH === 'Watch an ad?' && q.adWatch && q.adP.includes('5 moves') && played === 0, 'when an ad is ready the box asks first, and nothing plays until the player taps');
-  g.fire('adwatch:click'); rw.beforeAd(); q = g.dbg();
+  g.fire('rwgo:click'); rw.beforeAd(); q = g.dbg();
   check(played === 1 && q.adShowing && q.paused && !q.adWatch, 'Watch the ad starts it, with the game paused underneath');
   rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 5 && q.used5 && q.rescueLeft === 1, 'a watched ad grants the five-move rewind and counts the rescue');
   await playToGameOver(g); await settle(); dropsAd = g.dbg().drops;
   g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
   check(rw.name === 'undo10' && g.dbg().adk === 'Ad 1 of 2', 'Undo 10 counts its two ads');
-  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adDismissed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'dismissed' }); g.step(16.67); q = g.dbg();
+  rw.beforeReward(() => {}); g.fire('rwgo:click'); rw.beforeAd(); rw.adDismissed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'dismissed' }); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === 'over' && q.drops === dropsAd && !q.used10 && q.rescueLeft === 1, 'an ad closed early grants nothing and spends nothing');
   g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
-  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  rw.beforeReward(() => {}); g.fire('rwgo:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
   const rw2 = rewardCall();
   check(rw2 !== rw && q.adBusy && q.adk === 'Ad 2 of 2' && q.state === 'over', 'after the first ad the second is asked for');
-  rw2.beforeReward(() => {}); g.fire('adwatch:click'); rw2.beforeAd(); rw2.adViewed(); rw2.afterAd(); rw2.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  rw2.beforeReward(() => {}); g.fire('rwgo:click'); rw2.beforeAd(); rw2.adViewed(); rw2.afterAd(); rw2.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10 && q.rescueLeft === 0, 'both ads watched grant the ten-move rewind');
   g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67);
   if (g.dbg().undosFree > 0) { g.fire('undo:click'); g.step(16.67); g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); }
@@ -638,7 +638,7 @@ async function playToGameOver(g) {
   g.fire('undo:click'); g.step(16.67); rw = rewardCall();
   rw.adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67); q = g.dbg();
   check(rw.name === 'undo' && q.adBusy && q.adH === 'No ad right now' && !q.adWatch && q.undosUsed === undos0, 'with no ad available the box says so and nothing is used');
-  g.fire('adcancel:click'); g.step(16.67); q = g.dbg();
+  g.fire('rwno:click'); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === st0 && !q.adWatch, 'OK closes it');
   g.fire('undo:click'); g.step(16.67);
   for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
@@ -649,7 +649,7 @@ async function playToGameOver(g) {
   for (let d = 0; d < 12; d++) { g.tap(60 + (d % 5) * 50); for (let k = 0; k < 30; k++) g.step(16.67); }
   await playToGameOver(g); await settle(); dropsAd = g.dbg().drops;
   g.fire('revive:click'); g.fire('r10:click'); g.step(16.67); rw = rewardCall();
-  rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67);
+  rw.beforeReward(() => {}); g.fire('rwgo:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67);
   rewardCall().adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10, 'if the second ad never comes, the first one watched still earns the reward');
   g = boot(new Map(), { location: { search: '?adtest', hash: '', protocol: 'https:', href: 'https://orb.test/?adtest', pathname: '/' } }); await settle(); g.step(16.67);
@@ -670,7 +670,7 @@ async function playToGameOver(g) {
   check(libs().length === 2 && q.adBusy && q.adH === 'Finding an ad' && !q.adFail, 'the next reward asks for the library again');
   libs()[1].onerror(); q = g.dbg();
   check(q.adBusy && q.adH === 'No ad right now' && q.adFail, 'and when it fails again the box says so at once instead of waiting');
-  g.fire('adcancel:click'); g.step(16.67); check(!g.dbg().adBusy && g.dbg().state === 'play', 'OK returns to the run');
+  g.fire('rwno:click'); g.step(16.67); check(!g.dbg().adBusy && g.dbg().state === 'play', 'OK returns to the run');
 
   // the live setting: AD_TEST off loads the library without the test attribute
   g = boot(new Map()); await settle(); g.step(16.67);
@@ -688,18 +688,43 @@ async function playToGameOver(g) {
   let asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67); q = g.dbg();
   check(rewards() === asked + 1 && q.adBusy && q.adH === 'Finding an ad', 'an answer of "no ad ready yet" is asked again instead of giving up');
   rw = rewardCall(); rw.beforeReward(() => {}); check(g.dbg().adH === 'Watch an ad?', 'and the prompt appears when the ad arrives');
-  g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); asked = rewards(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  g.fire('rwgo:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); asked = rewards(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
   check(rewards() === asked + 1 && q.adBusy && q.adk === 'Ad 2 of 2' && q.adH === 'Finding an ad' && q.state === 'over', 'the second ad is asked for after the first');
   asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67);
   check(rewards() === asked + 1 && g.dbg().adBusy && g.dbg().state === 'over', 'and asked again while the library fetches it, with nothing granted yet');
-  rw = rewardCall(); rw.beforeReward(() => {}); g.fire('adwatch:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
+  rw = rewardCall(); rw.beforeReward(() => {}); g.fire('rwgo:click'); rw.beforeAd(); rw.adViewed(); rw.afterAd(); rw.adBreakDone({ breakStatus: 'viewed' }); g.step(16.67); q = g.dbg();
   check(!q.adBusy && q.state === 'play' && q.drops === dropsAd - 10 && q.used10, 'two ads watched, with a wait in between, grant the ten-move rewind');
   await playToGameOver(g); await settle();
   g.fire('revive:click'); g.fire('r5:click'); g.step(16.67);
   for (let k = 0; k < 400; k++) g.step(16.67);
   asked = rewards(); rewardCall().adBreakDone({ breakStatus: 'noAdPreloaded' }); g.step(16.67); q = g.dbg();
   check(rewards() === asked && q.adBusy && q.adH === 'No ad right now', 'once the wait is up a late "not yet" is not asked again');
-  g.fire('adcancel:click'); g.step(16.67);
+  g.fire('rwno:click'); g.step(16.67);
+
+  // a blocked or offline player is told why, and is not made to wait twice
+  g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
+  g.window.__adsInit('ca-pub-1234567890123456');
+  const cfg = g.window.adsbygoogle.find(c => c.preloadAdBreaks === 'on');
+  check(cfg && typeof cfg.onReady === 'function' && !g.dbg().adAlive, 'the library is asked to say when it is ready, and is not assumed alive before it does');
+  adCalls.length = 0; g.window.__setAdApi(o => adCalls.push(o));   // from here a stand-in that never answers, like a blocker's
+  g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); g.fire('undo:click'); g.step(16.67);   // the free undo
+  g.tap(180); for (let k = 0; k < 30; k++) g.step(16.67); g.fire('undo:click'); g.step(16.67);
+  check(g.dbg().adH === 'Finding an ad', 'the first reward waits for the library');
+  for (let k = 0; k < 400; k++) g.step(16.67); q = g.dbg();
+  check(q.adH === 'No ad right now' && q.adP.indexOf('An ad blocker may be stopping it') > 0 && q.adDead, 'a library that never answers ends in a message that names the likely cause');
+  g.fire('rwno:click'); g.step(16.67);
+  asked = rewards(); g.fire('undo:click'); g.step(16.67); q = g.dbg();
+  check(q.adBusy && q.adH === 'No ad right now' && rewards() === asked, 'the next reward says so at once, without asking or waiting again');
+  g.fire('rwno:click'); g.step(16.67);
+  cfg.onReady(); check(g.dbg().adAlive, 'when the library reports ready it counts as alive');
+  g.fire('undo:click'); g.step(16.67); q = g.dbg();
+  check(q.adH === 'Finding an ad' && rewards() === asked + 1, 'and rewards are asked for again');
+  rewardCall().adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67);
+  check(g.dbg().adP === 'Nothing was used. Try again in a minute.', 'a live library with no ad gives the plain message');
+  g.fire('rwno:click'); g.step(16.67);
+  g.navigator.onLine = false; g.fire('undo:click'); g.step(16.67); rewardCall().adBreakDone({ breakStatus: 'frequencyCapped' }); g.step(16.67);
+  check(g.dbg().adP === 'You are offline. Nothing was used.', 'and offline it says offline');
+  g.fire('rwno:click'); g.step(16.67); g.navigator.onLine = true;
 
   // nothing restarts the run under a reward in progress
   g = boot(new Map()); await settle(); for (let k = 0; k < 15; k++) g.step(16.67);
@@ -710,7 +735,7 @@ async function playToGameOver(g) {
   g.fire('revive:click'); g.fire('r5:click'); g.step(16.67);
   g.fire('win:keydown', { key: ' ', preventDefault() {} }); g.fire('again:click'); g.step(16.67); q = g.dbg();
   check(q.adBusy && q.state === 'over' && q.drops === dropsOver, 'while a reward is in progress neither the keyboard nor Play again restarts the run');
-  g.fire('adcancel:click'); g.step(16.67);
+  g.fire('rwno:click'); g.step(16.67);
   g.fire('win:keydown', { key: ' ', preventDefault() {} }); g.step(16.67);
   check(g.dbg().state === 'play' && g.dbg().drops === 0, 'and afterwards the keyboard restarts as before');
 
