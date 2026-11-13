@@ -13,6 +13,16 @@ Math.random = function () {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
+// The calendar is pinned as well. Today's seed is the date hashed, three checks play a run on it, the pieces it deals
+// decide how many sparks fly, and every spark draws from the one seeded Math.random stream: so the suite replayed a
+// different run on different days, and on some of them a dozen later checks failed (found when 13 November 2026
+// began in UTC). NOW=2027-01-05T00:00:00Z npm test moves the pinned day, the way SEED moves the dice.
+const RealDate = Date, T0 = RealDate.now(), PIN = RealDate.parse(process.env.NOW || '2026-11-12T12:00:00Z');
+global.Date = class extends RealDate {
+  constructor(...a) { if (a.length) super(...a); else super(PIN + (RealDate.now() - T0)); }
+  static now() { return PIN + (RealDate.now() - T0); }
+};
+
 function noop() {}
 function ctxStub() {
   return new Proxy({}, { get: (t, k) => {

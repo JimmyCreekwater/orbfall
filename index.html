@@ -140,6 +140,8 @@ textarea.nm.wide{height:96px;resize:none;text-align:left;font-size:14px;font-wei
   padding:16px 20px max(20px,env(safe-area-inset-bottom));transform:translateY(105%);
   transition:transform .26s cubic-bezier(.2,.9,.3,1);z-index:20}
 #sheet.show,#opts.show{transform:none}
+#sheet,#opts{max-width:520px;margin:0 auto}   /* on a wide window the sheets keep to the width of the game, centred, instead of stretching edge to edge */
+@media (min-width:560px){#sheet,#opts{border-left:1.5px solid rgba(184,149,90,.28);border-right:1.5px solid rgba(184,149,90,.28)}}
 @media (prefers-reduced-motion:reduce){.card{animation:none}#sheet,#opts{transition:none}.rows li.you{animation:none}.sw i{transition:none}.pb.pulse{animation:none}}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .sh h2{font-size:22px;font-weight:800;letter-spacing:-.02em}
@@ -366,7 +368,7 @@ var REDUCED=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: re
 var FONT='ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,system-ui,sans-serif';
 
 /* ---------- tuning knobs ---------- */
-var VERSION='0.20.0';      // the build: written here by tools/release.js, shown at the foot of the settings sheet
+var VERSION='0.20.1';      // the build: written here by tools/release.js, shown at the foot of the settings sheet
 var UNDO_FREE_PER_RUN=1;   // free undos each run; after that the reward hook gates it
 var AD_STUB_SECONDS=3;     // length of the placeholder "ad" until a real SDK is wired in
 var AD_STUB={undo:3,undo5:5,undo10:5,revive:4};   // placeholder seconds per placement; undo 10 costs two of them

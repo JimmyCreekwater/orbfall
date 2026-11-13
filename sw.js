@@ -4,7 +4,7 @@
    open page to the new worker. The page then reloads itself only where that costs nothing (the home menu; see
    applyUpdate in index.html), so an update never interrupts a run, and otherwise shows at the next launch. */
 'use strict';
-var CACHE='orbfall-shell-0.20.0';
+var CACHE='orbfall-shell-0.20.1';
 var SHELL=['./','manifest.webmanifest','privacy.html','icons/icon-192.png','icons/icon-512.png',
   'icons/maskable-192.png','icons/maskable-512.png','icons/apple-touch-icon.png'];
 

@@ -18,7 +18,10 @@ file as the design record: it captures decisions already made so they don't get 
 - Run `npm test` before and after any change to physics, scoring, persistence, input, or the
   PWA shell. The three suites (physics, functional, pwa) are headless Node (no deps) and take
   a few seconds. The harness seeds `Math.random` (`SEED`, default 1), so a run of the suite is
-  the same run every time; `SEED=7 npm test` explores another sequence.
+  the same run every time; `SEED=7 npm test` explores another sequence. It pins the calendar too
+  (`NOW`, default 2026-11-12): three checks play a run on today's seed, and before the pin the
+  date decided the pieces, the sparks, and so every roll after them; on 13 November 2026 UTC a
+  dozen unrelated checks failed with no code change. `NOW=2027-01-05T00:00:00Z npm test` moves the day.
 - Ship with `npm run release` (tools/release.js): it bumps the version into the worker's cache
   name and the page's own `VERSION` (shown at the foot of the settings sheet), refuses the placeholder domain in the Open Graph tags, runs the tests and prints the git
   commands. Never edit the cache name in `sw.js` by hand. PUBLISHING.md is the owner's runbook.
@@ -577,7 +580,8 @@ phone yet: if a mid-range device drops frames, lower `PARTS_MAX` first, then the
 and particle counts in `fx`.
 
 ## Settings (shipped 2026-09-24)
-A second bottom sheet, opened from the scores sheet header. Switches for music, sound effects,
+A second bottom sheet, opened from the scores sheet header (both sheets keep to 520 px, centred, on a wide
+window since 2026-11-13; on a desktop they used to stretch edge to edge). Switches for music, sound effects,
 haptics, the aim guide, the online board and (since 2026-11-12, off by default) faces, plus the
 Casual / Rush pair, all in `opt` and persisted with the save. The bar's sound button is a master mute (`opt.mute`) over both music and effects; `m` on
 a keyboard toggles it. `setOpt(k, v)` → `applyOpts()` → `persist()` is the only write path;
